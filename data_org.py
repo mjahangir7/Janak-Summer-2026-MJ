@@ -89,12 +89,12 @@ def load_data(data_dir):
     grid = {}  # outer key --> rat, inner key --> date, value --> session dict
  
     for filename in sorted(os.listdir(data_dir)):
-        if filename.endswith('.subject'):
+        if '.Subject' in filename:
             filepath = data_dir + '/' + filename
             session = read_subject_file(filepath)
 
             rat  = session['subject']
-            date = session['date']
+            date = session['start date']
     
             if rat not in grid:
                 grid[rat] = {}
@@ -103,3 +103,11 @@ def load_data(data_dir):
             print(f"Loaded: {filename}  |  rat = {rat}, date = {date}")
  
     return grid
+
+
+if __name__ == '__main__':
+ 
+    data_dir = './MPCdata_MJ'
+ 
+    grid = load_data(data_dir)
+    print(grid) # when this runs it's pretty hard to read and disorganized, should talk about a cleaner way to organize it
