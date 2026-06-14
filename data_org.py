@@ -1,12 +1,6 @@
 
-"""
-Questions for meeting:
-    1. just to double check - in the text file, within each letter/variable block, are the numbers on the left significant or can they be ignored?
-    2. how should summaires be saved (per phase, per date, figure it out later?) **vector of individual recording sessions (stack them one on top of each other)
-    she normally has recordings in an order
-    organizes in a grid of session by rat (every row is a new session and each col is a new rat); want to say pull up session 3 for rat 2
-"""
 
+import os
 
 # Variable definition (from what was sent earlier)
 varList = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'X', 'Y']
@@ -19,7 +13,7 @@ for letter, save, name in zip(varList, varSave, varName):
     if save == 1:
         letter_to_name[letter] = name
 
-# Read through a .subject file
+# Reads through a .subject file line by line
 # Returns a dictionary w/ metadata (date, subject, experiment, group, box, MSN) and data (one key per variable, value is list of floats)
 def read_subject_file(filepath):
  
@@ -87,13 +81,25 @@ def read_subject_file(filepath):
     return session
 
 
-# load all files from folder
-#    - loop through .subject files in the data directory??
-#    - store each returned session dict in nested dict (grid[rat][date] = session)
+# Loops through every .subject file in the folder and calls read_subject_file() on each one
+# Organizes all returned session dicts into a nested dictionary (grid = {'rat': {'date': all data}})
 
-# test file read function
-#    - print out a couple sessions to make sure the data looks right
-#    - check if metadata fields are correct and var lists have the right values
+def load_data(data_dir):
+ 
+    grid = {}  # outer key --> rat, inner key --> date, value --> session dict
+ 
+    for filename in sorted(os.listdir(data_dir)):
+        if filename.endswith('.subject'):
+            filepath = data_dir + '/' + filename
+            session = read_subject_file(filepath)
 
-# print summaries (confirm how)
-#    - print each rat, sessions/dates, and basic info (loop through grid)
+            rat  = session['subject']
+            date = session['date']
+    
+            if rat not in grid:
+                grid[rat] = {}
+    
+            grid[rat][date] = session
+            print(f"Loaded: {filename}  |  rat = {rat}, date = {date}")
+ 
+    return grid
