@@ -1,5 +1,4 @@
 
-
 import os
 
 # Variable definition (from what was sent earlier)
