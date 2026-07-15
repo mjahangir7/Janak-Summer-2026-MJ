@@ -210,17 +210,17 @@ def plot_lick_rate_by_quarter(grid, win_start=-2, win_end=13, bin_size=0.1):
 
             # find reward time for this trial
             if t == 1:
-                mask = (rew_L >= cue) & (rew_L < nxt)
-                if not np.any(mask):
+                in_trial = (rew_L >= cue) & (rew_L < nxt)
+                if not np.any(in_trial):
                     continue
-                rew_time = rew_L[mask][0]
+                rew_time = rew_L[in_trial][0]
             else:
-                mask = (rew_R >= cue) & (rew_R < nxt)
-                if not np.any(mask):
+                in_trial = (rew_R >= cue) & (rew_R < nxt)
+                if not np.any(in_trial):
                     continue
-                rew_time = rew_R[mask][0]
+                rew_time = rew_R[in_trial][0]
 
-            # center licks on reward, keep those in window, bin into rate
+            # subtracting to find x-vals, getting rid of anything outside x-axis window, binning
             centered = licks - rew_time
             in_win = centered[(centered >= win_start) & (centered <= win_end)]
             hist, _ = np.histogram(in_win, bins=edges)
@@ -244,7 +244,7 @@ def plot_lick_rate_by_quarter(grid, win_start=-2, win_end=13, bin_size=0.1):
         rat_avgs = [np.mean(wat_data[r][q], axis=0) for r in wat_data if len(wat_data[r][q]) > 0]
         wat_mean.append(np.mean(rat_avgs, axis=0) if rat_avgs else np.zeros(len(centers)))
 
-    # plot
+    # formatting for plots
     suc_colors = ['darkred', 'red', 'orange', 'yellow']
     wat_colors = ['black', 'darkblue', 'blue', 'purple']
     labels = ['Q1', 'Q2', 'Q3', 'Q4']
