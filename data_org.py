@@ -245,8 +245,8 @@ def plot_lick_rate_by_quarter(grid, win_start=-2, win_end=13, bin_size=0.1):
         wat_mean.append(np.mean(rat_avgs, axis=0) if rat_avgs else np.zeros(len(centers)))
 
     # plot
-    suc_colors = ['darkorange', 'orange', 'goldenrod', 'moccasin']
-    wat_colors = ['black', 'darkblue', 'royalblue', 'mediumpurple']
+    suc_colors = ['darkred', 'red', 'orange', 'yellow']
+    wat_colors = ['black', 'darkblue', 'blue', 'purple']
     labels = ['Q1', 'Q2', 'Q3', 'Q4']
 
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5), sharey=True)
