@@ -159,9 +159,21 @@ def load_data(data_dir):
 
 
 if __name__ == '__main__':
- 
+
     data_dir = './MPCdata_MJ'
- 
+
     metadata_df, grid = load_data(data_dir)
-    print(metadata_df)
-    print(grid)
+
+    # --- Random test ---
+    import random
+
+    keys = list(grid.keys())
+    test_key = random.choice(keys)
+
+    rat = test_key[0]
+    date = test_key[1]
+
+    print("Random key picked: rat =", rat, ", date =", date)
+
+    value = grid[test_key]['PortEnter'][49]
+    print("50th value of E (PortEnter):", value)
