@@ -252,16 +252,16 @@ def plot_lick_rate_by_quarter(grid, win_start=-2, win_end=13, bin_size=0.1):
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5), sharey=True)
 
     for q in range(4):
-        ax1.plot(centers, suc_mean[q], color=suc_colors[q], linewidth=1.5, label=labels[q])
-    ax1.axvline(0, color='gray', linestyle='--', linewidth=0.8)
+        ax1.plot(centers, suc_mean[q], color = suc_colors[q], linewidth = 1.5, label = labels[q])
+    ax1.axvline(0, color = 'gray', linestyle = '--', linewidth = 0.8)
     ax1.set_xlabel('Time from reward delivery (s)')
     ax1.set_ylabel('Lick rate (licks/s)')
     ax1.set_title('Sucrose Forced Trials')
     ax1.legend(title='Quarter')
 
     for q in range(4):
-        ax2.plot(centers, wat_mean[q], color=wat_colors[q], linewidth=1.5, label=labels[q])
-    ax2.axvline(0, color='gray', linestyle='--', linewidth=0.8)
+        ax2.plot(centers, wat_mean[q], color = wat_colors[q], linewidth = 1.5, label = labels[q])
+    ax2.axvline(0, color = 'gray', linestyle = '--', linewidth = 0.8)
     ax2.set_xlabel('Time from reward delivery (s)')
     ax2.set_title('Water Forced Trials')
     ax2.legend(title='Quarter')
