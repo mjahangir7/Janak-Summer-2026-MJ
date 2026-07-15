@@ -21,6 +21,7 @@ structures + logic to go about data organization
 import os
 import pandas as pd
 import numpy as np
+import matplotlib.pyplot as plt
 
 # Variable definition (from what was sent earlier)
 varList = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'X', 'Y']
@@ -158,6 +159,117 @@ def load_data(data_dir):
     return metadata_df, grid
 
 
+def plot_lick_rate_by_quarter(grid, win_start=-2, win_end=13, bin_size=0.1):
+    """
+    Plots lick rate (licks/sec) using reward onset/time from reward for forced trials, split by session quarter.
+
+    Two subplots: sucrose forced (left, orange shades) and water forced (right, blue shades).
+    Each session's forced trials are split into 4 equal quarters. Lick times are centered on
+    reward delivery, binned into a histogram, and converted to rate. Averaging is done first
+    within each quarter per rat, then across rats.
+    """
+
+    edges = np.arange(win_start, win_end + bin_size, bin_size)
+    centers = edges[:-1] + bin_size / 2
+
+    # rat_data[rat][quarter] = list of lick rate arrays, one per trial
+    suc_data = {}
+    wat_data = {}
+
+    for (rat, date), data in grid.items():
+
+        licks = data['Lick']
+        ids = data['TrialID']
+        cues = data['CS_start']
+        rew_L = data['rewON_L']
+        rew_R = data['rewON_R']
+        n = len(ids)
+
+        suc_idx = np.where(ids == 1)[0]
+        wat_idx = np.where(ids == 2)[0]
+
+        # split indices into 4 quarter chunks
+        def quarters(idx):
+            size = len(idx) // 4
+            return [set(idx[q * size : (q+1) * size if q < 3 else len(idx)]) for q in range(4)]
+
+        suc_q = quarters(suc_idx)
+        wat_q = quarters(wat_idx)
+
+        if rat not in suc_data:
+            suc_data[rat] = [[] for i in range(4)]
+            wat_data[rat] = [[] for i in range(4)]
+
+        for i in range(n):
+            t = ids[i]
+            if t == 3:
+                continue
+
+            cue = cues[i]
+            nxt = cues[i + 1] if i < n - 1 else np.inf
+
+            # find reward time for this trial
+            if t == 1:
+                mask = (rew_L >= cue) & (rew_L < nxt)
+                if not np.any(mask):
+                    continue
+                rew_time = rew_L[mask][0]
+            else:
+                mask = (rew_R >= cue) & (rew_R < nxt)
+                if not np.any(mask):
+                    continue
+                rew_time = rew_R[mask][0]
+
+            # center licks on reward, keep those in window, bin into rate
+            centered = licks - rew_time
+            in_win = centered[(centered >= win_start) & (centered <= win_end)]
+            hist, _ = np.histogram(in_win, bins=edges)
+            rate = hist / bin_size
+
+            # store under correct quarter
+            q_list = suc_q if t == 1 else wat_q
+            r_dict = suc_data if t == 1 else wat_data
+            for q in range(4):
+                if i in q_list[q]:
+                    r_dict[rat][q].append(rate)
+                    break
+
+    # average within quarter per rat, then across rats
+    suc_mean = []
+    wat_mean = []
+    for q in range(4):
+        rat_avgs = [np.mean(suc_data[r][q], axis=0) for r in suc_data if len(suc_data[r][q]) > 0]
+        suc_mean.append(np.mean(rat_avgs, axis=0) if rat_avgs else np.zeros(len(centers)))
+
+        rat_avgs = [np.mean(wat_data[r][q], axis=0) for r in wat_data if len(wat_data[r][q]) > 0]
+        wat_mean.append(np.mean(rat_avgs, axis=0) if rat_avgs else np.zeros(len(centers)))
+
+    # plot
+    suc_colors = ['darkorange', 'orange', 'goldenrod', 'moccasin']
+    wat_colors = ['black', 'darkblue', 'royalblue', 'mediumpurple']
+    labels = ['Q1', 'Q2', 'Q3', 'Q4']
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5), sharey=True)
+
+    for q in range(4):
+        ax1.plot(centers, suc_mean[q], color=suc_colors[q], linewidth=1.5, label=labels[q])
+    ax1.axvline(0, color='gray', linestyle='--', linewidth=0.8)
+    ax1.set_xlabel('Time from reward delivery (s)')
+    ax1.set_ylabel('Lick rate (licks/s)')
+    ax1.set_title('Sucrose Forced Trials')
+    ax1.legend(title='Quarter')
+
+    for q in range(4):
+        ax2.plot(centers, wat_mean[q], color=wat_colors[q], linewidth=1.5, label=labels[q])
+    ax2.axvline(0, color='gray', linestyle='--', linewidth=0.8)
+    ax2.set_xlabel('Time from reward delivery (s)')
+    ax2.set_title('Water Forced Trials')
+    ax2.legend(title='Quarter')
+
+    plt.tight_layout()
+    plt.show()
+
+
 if __name__ == '__main__':
 
     data_dir = './MPCdata_MJ'
@@ -177,3 +289,6 @@ if __name__ == '__main__':
 
     value = grid[test_key]['PortEnter'][49]
     print("50th value of E (PortEnter):", value)
+
+    # --- Lick rate plot test ---
+    plot_lick_rate_by_quarter(grid)
