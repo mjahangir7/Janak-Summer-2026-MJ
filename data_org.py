@@ -14,7 +14,7 @@ Example use: The two structures are linked by the same (rat, date) key, so metad
 condition, and grid can be used to pull the corresponding behavioral data for those sessions.       
 
 AI Disclosure: Portions of this script were written with the help of Claude (Anthropic), mainly for determining the best data
-structures + logic to go about data organization
+structures + logic to go about data organization, as well as formatting of figures
 """
 
 
@@ -22,13 +22,22 @@ import os
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib as mpl
 
-# Variable definition (from what was sent earlier)
+# use a clean, modern font for all plots
+mpl.rcParams['font.family'] = 'Arial'
+mpl.rcParams['font.size'] = 11
+
+# --- Variable mapping setup ---
+# Med-PC stores data under single letters (A, B, C...). These three lists line up so we can
+# translate each letter into a readable name. varSave = 1 means we want to keep that variable,
+# 0 means skip it.
 varList = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'X', 'Y']
 varSave = [1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0]
 varName = ['rewID_L', 'rewID_R', 'Indeces', 'Timers', 'PortEnter', 'PortExit', 'rewON_L', 'rewON_R', 'rewLP_L', 'rewLP_R', 'Lick', 'CS_start', 'TrialID', 'lat_rewPE', 'lat_rewLP', 'allLP_L', 'allLP_R', 'rewPE', 'list_ITI', 'list_trialID']
 
-# Matching variables to readable names (in dictionary)
+# Build a dictionary that maps each letter to its readable name, but only for the ones we want
+# e.g. {'A': 'rewID_L', 'B': 'rewID_R', 'E': 'PortEnter', ...}
 letter_to_name = {}
 for letter, save, name in zip(varList, varSave, varName):
     if save == 1:
@@ -48,65 +57,65 @@ def read_subject_file(filepath):
     data = {}
     current_letter = None  # letter we're currently reading
     current_data = []      # values for that letter
- 
-    file = open(filepath, 'r') # read file + store in lines
+
+    # open the file and read all lines into a list
+    file = open(filepath, 'r')
     lines = file.readlines()
     file.close()
- 
+
+    # go through every line in the file
     for line in lines:
         stripped = line.strip()
- 
+
         # skip empty lines
         if stripped == "":
             continue
- 
-        # storing metadata
+
+        # --- grab metadata from the header lines (Subject, Start Date, etc.) ---
         if stripped.startswith('Start Date:'):
             metadata['start date'] = stripped.split(':', 1)[1].strip()
- 
+
         elif stripped.startswith('Subject:'):
             metadata['subject'] = stripped.split(':', 1)[1].strip()
- 
+
         elif stripped.startswith('Group:'):
             metadata['group'] = stripped.split(':', 1)[1].strip()
- 
+
         elif stripped.startswith('Box:'):
             metadata['box'] = stripped.split(':', 1)[1].strip()
- 
+
         elif stripped.startswith('MSN:'):
             metadata['MSN'] = stripped.split(':', 1)[1].strip()
- 
-        # storing variables
+
+        # --- detect a new variable section (line starts with a capital letter then colon, like "E:") ---
         elif len(stripped) >= 2 and stripped[0].isupper() and stripped[1] == ':':
-            # save whatever we were collecting for the previous letter
+            # before moving to the new letter, save whatever data we collected for the previous one
             if current_letter is not None and current_letter in letter_to_name:
-                data[letter_to_name[current_letter]] = np.array(current_data)   # STORING DATA AS NUMPY ARRAY
- 
-            current_letter = stripped[0]   # store just the letter
-            current_data = []              # reset for new variable
- 
-            # check if there's a value on the same line (deals w/ A and B)
+                data[letter_to_name[current_letter]] = np.array(current_data)
+
+            current_letter = stripped[0]   # store just the letter (e.g. 'E')
+            current_data = []              # start fresh for the new variable
+
+            # some variables (like A and B) have their value on the same line as the letter
             remaining = stripped[2:].strip()
             if remaining:
-                # dealing w/ single value on the same line
                 if current_letter in letter_to_name:
                     data[letter_to_name[current_letter]] = np.array([float(remaining)])
-                current_letter = None  # reset curr letter because we don't want further lines to be counted
- 
+                current_letter = None  # done with this variable, don't collect more lines
 
-        # storing data rows inside each variable/letter
+        # --- read the numbered data rows that belong to the current variable ---
+        # these look like "0:    1.234    5.678    9.012" (row index, then values)
         elif current_letter is not None and stripped[0].isdigit() and ':' in stripped:
-            # check if this is a var we want to save, then store data
             if current_letter in letter_to_name:
-                # split off the row index label and store all values after it
+                # chop off the row index and grab just the numbers after the colon
                 values_part = stripped.split(':', 1)[1].strip()
                 for val in values_part.split():
                     current_data.append(float(val))
- 
-    # account for last variable
+
+    # don't forget to save the very last variable (the loop ends before it gets saved otherwise)
     if current_letter is not None and current_letter in letter_to_name:
-        data[letter_to_name[current_letter]] = np.array(current_data) # STORING AS NUMPY ARRAY
- 
+        data[letter_to_name[current_letter]] = np.array(current_data)
+
     return metadata, data
 
 
@@ -137,9 +146,10 @@ def load_data(data_dir):
     Aligned "keys" for both structures to be the same (tuple of (rat, date)) so that filtering is easier
     """
  
-    metadata_rows = [] # will become pandas DF; one row per session (a list of dictionaries essentially)
-    grid = {}  # holds (rat, date): data; dict of Numpy arrays (so that we account for variable lengths)
- 
+    metadata_rows = []  # will become a pandas DF; each element is one session's metadata dict
+    grid = {}           # will hold all the behavioral data, keyed by (rat, date)
+
+    # loop through every file in the folder, only process .Subject files
     for filename in sorted(os.listdir(data_dir)):
         if '.Subject' in filename:
             filepath = data_dir + '/' + filename
@@ -148,18 +158,19 @@ def load_data(data_dir):
             rat  = metadata['subject']
             date = metadata['start date']
 
-            metadata_rows.append(metadata) # add metadata row for this session
-            grid[(rat, date)] = data # store numpy arrays under the same key
-    
+            metadata_rows.append(metadata)   # add this session's metadata to the list
+            grid[(rat, date)] = data         # store this session's data arrays under (rat, date)
+
             print(f"Loaded: {filename}  |  rat = {rat}, date = {date}")
 
-    metadata_df = pd.DataFrame(metadata_rows) # CONVERTING TO DATA FRAME
-    metadata_df = metadata_df.set_index(['subject', 'start date']) # setting index as multi-index
+    # convert the list of metadata dicts into a pandas DataFrame, indexed by (subject, date)
+    metadata_df = pd.DataFrame(metadata_rows)
+    metadata_df = metadata_df.set_index(['subject', 'start date'])
 
     return metadata_df, grid
 
 
-def plot_lick_rate_by_quarter(grid, win_start=-2, win_end=13, bin_size=0.1):
+def plot_lick_rate_by_quarter(grid, sucrose_id, win_start=-2, win_end=13, bin_size=0.1):
     """
     Plots lick rate (licks/sec) using reward onset/time from reward for forced trials, split by session quarter.
 
@@ -167,28 +178,50 @@ def plot_lick_rate_by_quarter(grid, win_start=-2, win_end=13, bin_size=0.1):
     Each session's forced trials are split into 4 equal quarters. Lick times are centered on
     reward delivery, binned into a histogram, and converted to rate. Averaging is done first
     within each quarter per rat, then across rats.
+
+    sucrose_id: the rewID value that corresponds to sucrose (e.g. 15 or 7).
+                Used to figure out which side is sucrose for each rat,
+                since the sides are counterbalanced.
     """
 
+    # --- set up the histogram bins for the x-axis (time from reward) ---
+    # edges = the bin boundaries, centers = the midpoint of each bin (used for plotting)
     edges = np.arange(win_start, win_end + bin_size, bin_size)
     centers = edges[:-1] + bin_size / 2
 
-    # rat_data[rat][quarter] = list of lick rate arrays, one per trial
+    # these will store each rat's lick rate arrays, organized by quarter
+    # structure: suc_data[rat][quarter] = list of lick rate arrays, one per trial
     suc_data = {}
     wat_data = {}
 
+    # --- loop through every session and process each forced trial ---
     for (rat, date), data in grid.items():
 
-        licks = data['Lick']
-        ids = data['TrialID']
-        cues = data['CS_start']
-        rew_L = data['rewON_L']
-        rew_R = data['rewON_R']
+        # pull out the arrays we need from this session
+        licks = data['Lick']       # all lick timestamps
+        ids = data['TrialID']      # trial type for each trial (1, 2, or 3)
+        cues = data['CS_start']    # cue start time for each trial
+        rew_L = data['rewON_L']    # reward onset times on the left side
+        rew_R = data['rewON_R']    # reward onset times on the right side
         n = len(ids)
 
-        suc_idx = np.where(ids == 1)[0]
-        wat_idx = np.where(ids == 2)[0]
+        # --- figure out which trial ID is sucrose vs water for THIS rat ---
+        # trial 1 always fires the left reward, trial 2 always fires the right reward,
+        # but which SIDE has sucrose depends on the rat (counterbalanced across rats).
+        # we check rewID_L to see if the left side matches the sucrose reward ID.
+        if data['rewID_L'][0] == sucrose_id:
+            suc_trial = 1   # sucrose is on the left side, so trial 1 = sucrose
+            wat_trial = 2   # water is on the right side, so trial 2 = water
+        else:
+            suc_trial = 2   # sucrose is on the right side, so trial 2 = sucrose
+            wat_trial = 1   # water is on the left side, so trial 1 = water
 
-        # split indices into 4 quarter chunks
+        # get the indices of all sucrose forced trials and all water forced trials
+        suc_idx = np.where(ids == suc_trial)[0]
+        wat_idx = np.where(ids == wat_trial)[0]
+
+        # --- split each type's trial indices into 4 equal quarter chunks ---
+        # this lets us compare early vs late trials within a session
         def quarters(idx):
             size = len(idx) // 4
             return [set(idx[q * size : (q+1) * size if q < 3 else len(idx)]) for q in range(4)]
@@ -196,19 +229,25 @@ def plot_lick_rate_by_quarter(grid, win_start=-2, win_end=13, bin_size=0.1):
         suc_q = quarters(suc_idx)
         wat_q = quarters(wat_idx)
 
+        # initialize storage for this rat if we haven't seen it before
         if rat not in suc_data:
             suc_data[rat] = [[] for i in range(4)]
             wat_data[rat] = [[] for i in range(4)]
 
+        # --- go through each trial one by one ---
         for i in range(n):
             t = ids[i]
+
+            # skip choice trials (trial 3) — we only care about forced/surprise trials
             if t == 3:
                 continue
 
+            # figure out the time window for this trial (from this cue to the next cue)
             cue = cues[i]
             nxt = cues[i + 1] if i < n - 1 else np.inf
 
-            # find reward time for this trial
+            # --- find the reward delivery time for this trial ---
+            # trial 1 always uses the left reward port, trial 2 uses the right
             if t == 1:
                 in_trial = (rew_L >= cue) & (rew_L < nxt)
                 if not np.any(in_trial):
@@ -220,21 +259,24 @@ def plot_lick_rate_by_quarter(grid, win_start=-2, win_end=13, bin_size=0.1):
                     continue
                 rew_time = rew_R[in_trial][0]
 
-            # subtracting to find x-vals, getting rid of anything outside x-axis window, binning
+            # --- center lick times on reward delivery, then bin into a histogram ---
+            # "centered" = how many seconds each lick was before/after reward
             centered = licks - rew_time
             in_win = centered[(centered >= win_start) & (centered <= win_end)]
             hist, _ = np.histogram(in_win, bins=edges)
-            rate = hist / bin_size
+            rate = hist / bin_size  # convert counts to licks per second
 
-            # store under correct quarter
-            q_list = suc_q if t == 1 else wat_q
-            r_dict = suc_data if t == 1 else wat_data
+            # --- figure out which quarter this trial belongs to, and store it ---
+            is_suc = (t == suc_trial)
+            q_list = suc_q if is_suc else wat_q
+            r_dict = suc_data if is_suc else wat_data
             for q in range(4):
                 if i in q_list[q]:
                     r_dict[rat][q].append(rate)
                     break
 
-    # average within quarter per rat, then across rats
+    # --- averaging step 1: average all trials within each quarter for each rat ---
+    # --- averaging step 2: average across rats to get one line per quarter ---
     suc_mean = []
     wat_mean = []
     for q in range(4):
@@ -244,51 +286,269 @@ def plot_lick_rate_by_quarter(grid, win_start=-2, win_end=13, bin_size=0.1):
         rat_avgs = [np.mean(wat_data[r][q], axis=0) for r in wat_data if len(wat_data[r][q]) > 0]
         wat_mean.append(np.mean(rat_avgs, axis=0) if rat_avgs else np.zeros(len(centers)))
 
-    # formatting for plots
-    suc_colors = ['darkred', 'red', 'orange', 'yellow']
+    # --- plot the results: sucrose on the left subplot, water on the right ---
+    suc_colors = ['black', 'saddlebrown', 'chocolate', 'orange']
     wat_colors = ['black', 'darkblue', 'blue', 'purple']
     labels = ['Q1', 'Q2', 'Q3', 'Q4']
 
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5), sharey=True)
 
+    # sucrose subplot (left)
     for q in range(4):
         ax1.plot(centers, suc_mean[q], color = suc_colors[q], linewidth = 1.5, label = labels[q])
     ax1.axvline(0, color = 'gray', linestyle = '--', linewidth = 0.8)
     ax1.set_xlabel('Time from reward delivery (s)')
     ax1.set_ylabel('Lick rate (licks/s)')
-    ax1.set_title('Sucrose Forced Trials')
+    ax1.set_title('Sucrose Surprise Trials', fontweight='bold')
     ax1.legend(title='Quarter')
 
+    # water subplot (right)
     for q in range(4):
         ax2.plot(centers, wat_mean[q], color = wat_colors[q], linewidth = 1.5, label = labels[q])
     ax2.axvline(0, color = 'gray', linestyle = '--', linewidth = 0.8)
     ax2.set_xlabel('Time from reward delivery (s)')
-    ax2.set_title('Water Forced Trials')
+    ax2.set_title('Water Surprise Trials', fontweight='bold')
     ax2.legend(title='Quarter')
 
-    plt.tight_layout()
+    plt.suptitle('Surprise Trial Lick Rate', fontsize=14, fontweight='bold', y=0.93)
+    fig.text(0.5, 0.86, 'Phase 4 Training  |  3 rats, 5 sessions',
+             ha='center', fontsize=11, fontstyle='italic', fontweight='bold', color='gray')
+    plt.tight_layout(rect=[0, 0, 1, 0.9])
+    plt.savefig('lick_rate_surprise.png', dpi=150)
+    plt.show()
+
+
+def segment_licks(lick_times, gap_threshold):
+    """
+    Takes a sorted list of lick timestamps and splits them into groups (bouts or clusters)
+    wherever there's a pause longer than gap_threshold seconds between licks.
+    Returns a list of arrays — each array is one group of licks.
+    """
+    if len(lick_times) == 0:
+        return []
+    # calculate the time gap between each consecutive pair of licks
+    time_gap = np.diff(lick_times)
+    # find where the gap is big enough to count as a break
+    break_points = np.where(time_gap >= gap_threshold)[0]
+    # split the lick times at those break points
+    return np.split(lick_times, break_points + 1)
+
+
+
+def plot_bout_cluster_analysis(grid, win_start=-2, win_end=13):
+    """
+    Bout and cluster analysis on forced (surprise) trials, split by session quarter.
+
+    For each trial, licks within a window around reward onset are segmented into
+    bouts (gap >= 1.0 s) and clusters (gap >= 0.5 s). Metrics: number of bouts/clusters
+    and mean licks per bout/cluster. Trials split into 4 equal quarters within each session.
+    Averaging: within quarter per rat, then across rats.
+
+    Uses rewID_L to determine counterbalancing (which side is sucrose vs water).
+    """
+
+    # bout = licks separated by < 1.0 s; cluster = licks separated by < 0.5 s
+    BOUT_GAP = 1.0
+    CLUSTER_GAP = 0.5
+
+    # store per-trial bout/cluster metrics, organized by rat and quarter
+    # structure: suc_data[rat][quarter] = list of metric dicts, one per trial
+    suc_data = {}
+    wat_data = {}
+
+    # --- loop through every session ---
+    for (rat, date), data in grid.items():
+
+        # pull out the arrays we need
+        licks = data['Lick']
+        ids = data['TrialID']
+        cues = data['CS_start']
+        rew_L = data['rewON_L']
+        rew_R = data['rewON_R']
+        n = len(ids)
+
+        # --- figure out which trial ID is sucrose vs water for THIS rat ---
+        # rewID_L = 15 means left side has sucrose, so trial 1 (left port) = sucrose
+        # rewID_L = 7 means left side has water, so trial 1 (left port) = water
+        if data['rewID_L'][0] == 15:
+            suc_trial = 1
+            wat_trial = 2
+        else:
+            suc_trial = 2
+            wat_trial = 1
+
+        # get indices of all forced sucrose and water trials
+        suc_idx = np.where(ids == suc_trial)[0]
+        wat_idx = np.where(ids == wat_trial)[0]
+
+        # split each type's trial indices into 4 equal quarter chunks
+        def quarters(idx):
+            size = len(idx) // 4
+            return [set(idx[q * size : (q + 1) * size if q < 3 else len(idx)]) for q in range(4)]
+
+        suc_q = quarters(suc_idx)
+        wat_q = quarters(wat_idx)
+
+        # initialize storage for this rat if first time seeing it
+        if rat not in suc_data:
+            suc_data[rat] = [[] for i in range(4)]
+            wat_data[rat] = [[] for i in range(4)]
+
+        # --- go through each trial ---
+        for i in range(n):
+            t = ids[i]
+
+            # skip choice trials; only analyze forced/surprise trials
+            if t == 3:
+                continue
+
+            # figure out the time window for this trial (from this cue to the next cue)
+            cue = cues[i]
+            nxt = cues[i + 1] if i < n - 1 else np.inf
+
+            # find reward onset time (trial 1 = left reward, trial 2 = right reward)
+            if t == 1:
+                in_trial = (rew_L >= cue) & (rew_L < nxt)
+                if not np.any(in_trial):
+                    continue
+                rew_time = rew_L[in_trial][0]
+            else:
+                in_trial = (rew_R >= cue) & (rew_R < nxt)
+                if not np.any(in_trial):
+                    continue
+                rew_time = rew_R[in_trial][0]
+
+            # grab only the licks within the analysis window around reward onset
+            centered = licks - rew_time
+            win_licks = np.sort(licks[(centered >= win_start) & (centered <= win_end)])
+
+            # split those licks into bouts (big gaps) and clusters (smaller gaps)
+            bouts = segment_licks(win_licks, BOUT_GAP)
+            clusters = segment_licks(win_licks, CLUSTER_GAP)
+
+            # compute the 4 metrics for this trial
+            trial_metrics = {
+                'n_bouts': len(bouts),
+                'mean_licks_bout': np.mean([len(b) for b in bouts]) if bouts else 0,
+                'n_clusters': len(clusters),
+                'mean_licks_cluster': np.mean([len(c) for c in clusters]) if clusters else 0,
+            }
+
+            # store in the correct reward type and quarter
+            is_suc = (t == suc_trial)
+            q_list = suc_q if is_suc else wat_q
+            r_dict = suc_data if is_suc else wat_data
+            for q in range(4):
+                if i in q_list[q]:
+                    r_dict[rat][q].append(trial_metrics)
+                    break
+
+    # --- averaging: first within each quarter per rat, then across rats ---
+    metric_names = ['n_bouts', 'mean_licks_bout', 'n_clusters', 'mean_licks_cluster']
+
+    def rat_quarter_means(data_dict):
+        """For each rat, average all trials within each quarter into a single value per metric."""
+        out = {}
+        for rat in data_dict:
+            out[rat] = []
+            for q in range(4):
+                trials = data_dict[rat][q]
+                if trials:
+                    out[rat].append({m: np.mean([t[m] for t in trials]) for m in metric_names})
+                else:
+                    out[rat].append({m: np.nan for m in metric_names})
+        return out
+
+    suc_rat_means = rat_quarter_means(suc_data)
+    wat_rat_means = rat_quarter_means(wat_data)
+
+    # --- plot a 2x2 grid of subplots ---
+    fig, axes = plt.subplots(2, 2, figsize=(12, 8))
+
+    # each tuple: (axis, metric key, subplot title)
+    plot_info = [
+        (axes[0, 0], 'n_bouts',            'Number of Bouts per Trial'),
+        (axes[0, 1], 'mean_licks_bout',     'Mean Licks per Bout'),
+        (axes[1, 0], 'n_clusters',          'Number of Clusters per Trial'),
+        (axes[1, 1], 'mean_licks_cluster',  'Mean Licks per Cluster'),
+    ]
+
+    quarter_labels = ['Q1', 'Q2', 'Q3', 'Q4']
+    x = np.arange(4)
+    offset = 0.12  # horizontal nudge so sucrose and water dots don't overlap
+
+    for ax, metric, title in plot_info:
+
+        # collect each rat's quarter-mean for this metric
+        suc_ind = {q: [] for q in range(4)}
+        wat_ind = {q: [] for q in range(4)}
+
+        for rat in suc_rat_means:
+            for q in range(4):
+                val = suc_rat_means[rat][q][metric]
+                if not np.isnan(val):
+                    suc_ind[q].append(val)
+
+        for rat in wat_rat_means:
+            for q in range(4):
+                val = wat_rat_means[rat][q][metric]
+                if not np.isnan(val):
+                    wat_ind[q].append(val)
+
+        # compute the group mean across all rats for each quarter
+        suc_group = [np.mean(suc_ind[q]) if suc_ind[q] else np.nan for q in range(4)]
+        wat_group = [np.mean(wat_ind[q]) if wat_ind[q] else np.nan for q in range(4)]
+
+        # plot individual rat values as small dots (no jitter)
+        for q in range(4):
+            ax.scatter([x[q] - offset] * len(suc_ind[q]), suc_ind[q],
+                       color='orange', alpha=0.5, s=25, zorder=2)
+            ax.scatter([x[q] + offset] * len(wat_ind[q]), wat_ind[q],
+                       color='blue', alpha=0.5, s=25, zorder=2)
+
+        # plot group means as larger squares with black outlines
+        ax.scatter(x - offset, suc_group, color='orange', s=80, zorder=3,
+                   marker='s', edgecolors='black', linewidths=0.5, label='Sucrose')
+        ax.scatter(x + offset, wat_group, color='blue', s=80, zorder=3,
+                   marker='s', edgecolors='black', linewidths=0.5, label='Water')
+
+        # label axes and add a legend
+        ax.set_xticks(x)
+        ax.set_xticklabels(quarter_labels)
+        ax.set_xlabel('Session Quarter')
+        ax.set_ylabel(title)
+        ax.set_title(title, fontweight='bold', pad=10)
+        ax.legend()
+
+    # main title + subtitle with session info
+    plt.suptitle('Bout & Cluster Analysis', fontsize=14, fontweight='bold', y=0.95)
+    fig.text(0.5, 0.90, 'Surprise Trials by Quarter  |  Phase 4 Training',
+             ha='center', fontsize=11, fontstyle='italic', color='gray')
+    plt.tight_layout(rect=[0, 0, 1, 0.93])
+    plt.savefig('bout_cluster_analysis.png', dpi=150)
     plt.show()
 
 
 if __name__ == '__main__':
 
+    # load all subject files from the data folder
     data_dir = './MPCdata_MJ'
-
     metadata_df, grid = load_data(data_dir)
 
-    # --- Random test ---
+    # --- quick sanity check: pick a random session and print one value ---
     import random
-
     keys = list(grid.keys())
     test_key = random.choice(keys)
-
     rat = test_key[0]
     date = test_key[1]
-
     print("Random key picked: rat =", rat, ", date =", date)
-
     value = grid[test_key]['PortEnter'][49]
     print("50th value of E (PortEnter):", value)
 
-    # --- Lick rate plot test ---
-    plot_lick_rate_by_quarter(grid)
+    # --- lick rate plot (forced/surprise trials only, skipping choice trials) ---
+    # sucrose_id = 7 means rewID 7 is the sucrose reward
+    # (this handles the counterbalancing — each rat's sides are checked automatically)
+    plot_lick_rate_by_quarter(grid, sucrose_id=15)
+
+    # --- bout & cluster analysis ---
+    plot_bout_cluster_analysis(grid)
