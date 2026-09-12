@@ -10,11 +10,8 @@ for data analysis:
        behavioral data (Lick, PortEnter, etc)
        ** Numpy arrays were used here because of differing variable lengths within a single session
 
-Example use: The two structures are linked by the same (rat, date) key, so metadata_df can be used to identify which sessions meet some 
-condition, and grid can be used to pull the corresponding behavioral data for those sessions.       
-
 AI Disclosure: Portions of this script were written with the help of Claude (Anthropic), mainly for determining the best data
-structures + logic to go about data organization, as well as formatting of figures
+structures + logic to go about data organization, as well as formatting of figures and code to make more concise
 """
 
 
@@ -24,19 +21,19 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 
-# use a clean, modern font for all plots
+# font for all plots
 mpl.rcParams['font.family'] = 'Arial'
 mpl.rcParams['font.size'] = 11
 
-# --- Variable mapping setup ---
-# Med-PC stores data under single letters (A, B, C...). These three lists line up so we can
+# --- variable mapping setup ---
+# Med-PC stores data under single letters (A, B, C...). these three lists line up so we can
 # translate each letter into a readable name. varSave = 1 means we want to keep that variable,
-# 0 means skip it.
+# 0 means skip it
 varList = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'X', 'Y']
 varSave = [1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0]
 varName = ['rewID_L', 'rewID_R', 'Indeces', 'Timers', 'PortEnter', 'PortExit', 'rewON_L', 'rewON_R', 'rewLP_L', 'rewLP_R', 'Lick', 'CS_start', 'TrialID', 'lat_rewPE', 'lat_rewLP', 'allLP_L', 'allLP_R', 'rewPE', 'list_ITI', 'list_trialID']
 
-# Build a dictionary that maps each letter to its readable name, but only for the ones we want
+# build dictionary that maps each letter to its readable name, but only for the ones we want
 # e.g. {'A': 'rewID_L', 'B': 'rewID_R', 'E': 'PortEnter', ...}
 letter_to_name = {}
 for letter, save, name in zip(varList, varSave, varName):
@@ -93,8 +90,8 @@ def read_subject_file(filepath):
             if current_letter is not None and current_letter in letter_to_name:
                 data[letter_to_name[current_letter]] = np.array(current_data)
 
-            current_letter = stripped[0]   # store just the letter (e.g. 'E')
-            current_data = []              # start fresh for the new variable
+            current_letter = stripped[0] # store just the letter (e.g. 'E')
+            current_data = []  # start fresh for new variable
 
             # some variables (like A and B) have their value on the same line as the letter
             remaining = stripped[2:].strip()
@@ -104,15 +101,15 @@ def read_subject_file(filepath):
                 current_letter = None  # done with this variable, don't collect more lines
 
         # --- read the numbered data rows that belong to the current variable ---
-        # these look like "0:    1.234    5.678    9.012" (row index, then values)
+        # looks like "0:  1.234  5.678  9.012" (row index, then values)
         elif current_letter is not None and stripped[0].isdigit() and ':' in stripped:
             if current_letter in letter_to_name:
-                # chop off the row index and grab just the numbers after the colon
+                # grab just the numbers after the colon
                 values_part = stripped.split(':', 1)[1].strip()
                 for val in values_part.split():
                     current_data.append(float(val))
 
-    # don't forget to save the very last variable (the loop ends before it gets saved otherwise)
+    # save very last variable (the loop ends before it gets saved otherwise)
     if current_letter is not None and current_letter in letter_to_name:
         data[letter_to_name[current_letter]] = np.array(current_data)
 
@@ -122,9 +119,9 @@ def read_subject_file(filepath):
 def load_data(data_dir):
 
     """
-    Loops through every .subject file in the folder and calls read_subject_file() on each one. Returns 2 data structures:
+    Loops through every .subject file in the folder and calls read_subject_file() on each one. Returns 2 things:
 
-    metadata_df - pandas data frame, each session is one row, multi-indexed (indexed by (subject, start date))
+    metadata_df - pandas data frame, each session is one row, multi-indexed (indexed by (rat, start date))
     grid - dict w/ (rat, date) tuples as the keys, and 1D Numpy arrays of behavioral data as the values
 
         example: grid = {
@@ -147,7 +144,7 @@ def load_data(data_dir):
     """
  
     metadata_rows = []  # will become a pandas DF; each element is one session's metadata dict
-    grid = {}           # will hold all the behavioral data, keyed by (rat, date)
+    grid = {}  # will hold all the behavioral data, keyed by (rat, date)
 
     # loop through every file in the folder, only process .Subject files
     for filename in sorted(os.listdir(data_dir)):
@@ -189,7 +186,7 @@ def plot_lick_rate_by_quarter(grid, sucrose_id, win_start=-2, win_end=13, bin_si
     edges = np.arange(win_start, win_end + bin_size, bin_size)
     centers = edges[:-1] + bin_size / 2
 
-    # these will store each rat's lick rate arrays, organized by quarter
+    # store each rat's lick rate arrays, organized by quarter
     # structure: suc_data[rat][quarter] = list of lick rate arrays, one per trial
     suc_data = {}
     wat_data = {}
@@ -198,30 +195,27 @@ def plot_lick_rate_by_quarter(grid, sucrose_id, win_start=-2, win_end=13, bin_si
     for (rat, date), data in grid.items():
 
         # pull out the arrays we need from this session
-        licks = data['Lick']       # all lick timestamps
-        ids = data['TrialID']      # trial type for each trial (1, 2, or 3)
-        cues = data['CS_start']    # cue start time for each trial
-        rew_L = data['rewON_L']    # reward onset times on the left side
-        rew_R = data['rewON_R']    # reward onset times on the right side
+        licks = data['Lick']  # all lick timestamps
+        ids = data['TrialID']   # trial type for each trial (1, 2, or 3)
+        cues = data['CS_start']  # cue start time for each trial
+        rew_L = data['rewON_L']  # reward onset times on the left side
+        rew_R = data['rewON_R']  # reward onset times on the right side
         n = len(ids)
 
-        # --- figure out which trial ID is sucrose vs water for THIS rat ---
-        # trial 1 always fires the left reward, trial 2 always fires the right reward,
-        # but which SIDE has sucrose depends on the rat (counterbalanced across rats).
-        # we check rewID_L to see if the left side matches the sucrose reward ID.
+        # --- figure out which trial ID is sucrose vs water for this rat ---
+        # have to check which side has sucrose bc of counterbalance; check rewID_L to see if left side matches sucrose reward ID.
         if data['rewID_L'][0] == sucrose_id:
-            suc_trial = 1   # sucrose is on the left side, so trial 1 = sucrose
-            wat_trial = 2   # water is on the right side, so trial 2 = water
+            suc_trial = 1  # sucrose on left side, so trial 1 = sucrose
+            wat_trial = 2  # water on right side, so trial 2 = water
         else:
-            suc_trial = 2   # sucrose is on the right side, so trial 2 = sucrose
-            wat_trial = 1   # water is on the left side, so trial 1 = water
+            suc_trial = 2
+            wat_trial = 1 
 
-        # get the indices of all sucrose forced trials and all water forced trials
+        # get the indices of all sucrose surprise and all water surprise
         suc_idx = np.where(ids == suc_trial)[0]
         wat_idx = np.where(ids == wat_trial)[0]
 
         # --- split each type's trial indices into 4 equal quarter chunks ---
-        # this lets us compare early vs late trials within a session
         def quarters(idx):
             size = len(idx) // 4
             return [set(idx[q * size : (q+1) * size if q < 3 else len(idx)]) for q in range(4)]
@@ -238,16 +232,16 @@ def plot_lick_rate_by_quarter(grid, sucrose_id, win_start=-2, win_end=13, bin_si
         for i in range(n):
             t = ids[i]
 
-            # skip choice trials (trial 3) — we only care about forced/surprise trials
+            # skip choice trials (trial id 3)
             if t == 3:
                 continue
 
-            # figure out the time window for this trial (from this cue to the next cue)
+            # figure out time window for this trial (from this cue to next)
             cue = cues[i]
-            nxt = cues[i + 1] if i < n - 1 else np.inf
+            nxt = cues[i + 1] if i < n - 1 else np.inf # infinity --> to avoid index out of bounds
 
             # --- find the reward delivery time for this trial ---
-            # trial 1 always uses the left reward port, trial 2 uses the right
+            # trial 1 always uses the left reward port, trial 2 uses the right?? double check at end
             if t == 1:
                 in_trial = (rew_L >= cue) & (rew_L < nxt)
                 if not np.any(in_trial):
@@ -259,14 +253,13 @@ def plot_lick_rate_by_quarter(grid, sucrose_id, win_start=-2, win_end=13, bin_si
                     continue
                 rew_time = rew_R[in_trial][0]
 
-            # --- center lick times on reward delivery, then bin into a histogram ---
-            # "centered" = how many seconds each lick was before/after reward
-            centered = licks - rew_time
+            # --- center lick times on reward delivery, then bin into histogram ---
+            centered = licks - rew_time  # how many seconds each lick was before/after reward
             in_win = centered[(centered >= win_start) & (centered <= win_end)]
             hist, _ = np.histogram(in_win, bins=edges)
             rate = hist / bin_size  # convert counts to licks per second
 
-            # --- figure out which quarter this trial belongs to, and store it ---
+            # --- figure out which quarter this trial belongs to, store it ---
             is_suc = (t == suc_trial)
             q_list = suc_q if is_suc else wat_q
             r_dict = suc_data if is_suc else wat_data
@@ -275,8 +268,8 @@ def plot_lick_rate_by_quarter(grid, sucrose_id, win_start=-2, win_end=13, bin_si
                     r_dict[rat][q].append(rate)
                     break
 
-    # --- averaging step 1: average all trials within each quarter for each rat ---
-    # --- averaging step 2: average across rats to get one line per quarter ---
+    # --- 1st average: average all trials within each quarter for each rat ---
+    # --- 2nd average: average across rats to get one line per quarter ---
     suc_mean = []
     wat_mean = []
     for q in range(4):
@@ -286,7 +279,7 @@ def plot_lick_rate_by_quarter(grid, sucrose_id, win_start=-2, win_end=13, bin_si
         rat_avgs = [np.mean(wat_data[r][q], axis=0) for r in wat_data if len(wat_data[r][q]) > 0]
         wat_mean.append(np.mean(rat_avgs, axis=0) if rat_avgs else np.zeros(len(centers)))
 
-    # --- plot the results: sucrose on the left subplot, water on the right ---
+    # --- plot results: sucrose on left, water on right ---
     suc_colors = ['black', 'saddlebrown', 'chocolate', 'orange']
     wat_colors = ['black', 'darkblue', 'blue', 'purple']
     labels = ['Q1', 'Q2', 'Q3', 'Q4']
@@ -321,8 +314,8 @@ def plot_lick_rate_by_quarter(grid, sucrose_id, win_start=-2, win_end=13, bin_si
 def segment_licks(lick_times, gap_threshold):
     """
     Takes a sorted list of lick timestamps and splits them into groups (bouts or clusters)
-    wherever there's a pause longer than gap_threshold seconds between licks.
-    Returns a list of arrays — each array is one group of licks.
+    wherever rats pause longer than gap_threshold seconds between licks
+    Returns a list of arrays (each array = one group of licks)
     """
     if len(lick_times) == 0:
         return []
@@ -335,16 +328,16 @@ def segment_licks(lick_times, gap_threshold):
 
 
 
-def plot_bout_cluster_analysis(grid, win_start=-2, win_end=13):
+def plot_bout_cluster_analysis(grid, win_start = -2, win_end = 13):
     """
-    Bout and cluster analysis on forced (surprise) trials, split by session quarter.
+    Bout and cluster analysis on surprise trials, split by session quarter
 
     For each trial, licks within a window around reward onset are segmented into
-    bouts (gap >= 1.0 s) and clusters (gap >= 0.5 s). Metrics: number of bouts/clusters
+    bouts (gap >= 1.0 s) and clusters (gap >= 0.5 s). Calculates metrics of number of bouts/clusters
     and mean licks per bout/cluster. Trials split into 4 equal quarters within each session.
-    Averaging: within quarter per rat, then across rats.
+    Averages within quarter per rat, then across rats.
 
-    Uses rewID_L to determine counterbalancing (which side is sucrose vs water).
+    Uses rewID_L to account for counterbalancing (which side is sucrose vs water).
     """
 
     # bout = licks separated by < 1.0 s; cluster = licks separated by < 0.5 s
@@ -352,14 +345,14 @@ def plot_bout_cluster_analysis(grid, win_start=-2, win_end=13):
     CLUSTER_GAP = 0.5
 
     # store per-trial bout/cluster metrics, organized by rat and quarter
-    # structure: suc_data[rat][quarter] = list of metric dicts, one per trial
+    # structure is suc_data[rat][quarter] = list of metric dicts, one per trial
     suc_data = {}
     wat_data = {}
 
     # --- loop through every session ---
     for (rat, date), data in grid.items():
 
-        # pull out the arrays we need
+        # pull out arrays we need
         licks = data['Lick']
         ids = data['TrialID']
         cues = data['CS_start']
@@ -367,9 +360,7 @@ def plot_bout_cluster_analysis(grid, win_start=-2, win_end=13):
         rew_R = data['rewON_R']
         n = len(ids)
 
-        # --- figure out which trial ID is sucrose vs water for THIS rat ---
-        # rewID_L = 15 means left side has sucrose, so trial 1 (left port) = sucrose
-        # rewID_L = 7 means left side has water, so trial 1 (left port) = water
+        # --- figure out which trial ID is sucrose vs water for this rat (copied from lick rate plot) ---
         if data['rewID_L'][0] == 15:
             suc_trial = 1
             wat_trial = 2
@@ -377,7 +368,7 @@ def plot_bout_cluster_analysis(grid, win_start=-2, win_end=13):
             suc_trial = 2
             wat_trial = 1
 
-        # get indices of all forced sucrose and water trials
+        # get indices of all surprise sucrose and water trials
         suc_idx = np.where(ids == suc_trial)[0]
         wat_idx = np.where(ids == wat_trial)[0]
 
@@ -389,24 +380,24 @@ def plot_bout_cluster_analysis(grid, win_start=-2, win_end=13):
         suc_q = quarters(suc_idx)
         wat_q = quarters(wat_idx)
 
-        # initialize storage for this rat if first time seeing it
+        # create storage for this rat if first time seeing it
         if rat not in suc_data:
             suc_data[rat] = [[] for i in range(4)]
             wat_data[rat] = [[] for i in range(4)]
 
-        # --- go through each trial ---
+        # --- go through each trial (similar logic to lick rate as well) ---
         for i in range(n):
             t = ids[i]
 
-            # skip choice trials; only analyze forced/surprise trials
+            # skip choice trials
             if t == 3:
                 continue
 
-            # figure out the time window for this trial (from this cue to the next cue)
+            # figure out time window for this trial (from this cue to the next)
             cue = cues[i]
             nxt = cues[i + 1] if i < n - 1 else np.inf
 
-            # find reward onset time (trial 1 = left reward, trial 2 = right reward)
+            # find reward onset time (1 = left reward, 2 = right reward)
             if t == 1:
                 in_trial = (rew_L >= cue) & (rew_L < nxt)
                 if not np.any(in_trial):
@@ -418,11 +409,11 @@ def plot_bout_cluster_analysis(grid, win_start=-2, win_end=13):
                     continue
                 rew_time = rew_R[in_trial][0]
 
-            # grab only the licks within the analysis window around reward onset
+            # grab only the licks within window around reward onset
             centered = licks - rew_time
             win_licks = np.sort(licks[(centered >= win_start) & (centered <= win_end)])
 
-            # split those licks into bouts (big gaps) and clusters (smaller gaps)
+            # split those licks into bouts (big gaps) and clusters (smaller gaps) w/ function from above
             bouts = segment_licks(win_licks, BOUT_GAP)
             clusters = segment_licks(win_licks, CLUSTER_GAP)
 
@@ -443,11 +434,11 @@ def plot_bout_cluster_analysis(grid, win_start=-2, win_end=13):
                     r_dict[rat][q].append(trial_metrics)
                     break
 
-    # --- averaging: first within each quarter per rat, then across rats ---
+    # --- to average --> first within each quarter per rat, then across rats ---
     metric_names = ['n_bouts', 'mean_licks_bout', 'n_clusters', 'mean_licks_cluster']
 
     def rat_quarter_means(data_dict):
-        """For each rat, average all trials within each quarter into a single value per metric."""
+        """For each rat, average all trials within each quarter into a single value per metric"""
         out = {}
         for rat in data_dict:
             out[rat] = []
@@ -467,19 +458,19 @@ def plot_bout_cluster_analysis(grid, win_start=-2, win_end=13):
 
     # each tuple: (axis, metric key, subplot title)
     plot_info = [
-        (axes[0, 0], 'n_bouts',            'Number of Bouts per Trial'),
-        (axes[0, 1], 'mean_licks_bout',     'Mean Licks per Bout'),
-        (axes[1, 0], 'n_clusters',          'Number of Clusters per Trial'),
-        (axes[1, 1], 'mean_licks_cluster',  'Mean Licks per Cluster'),
+        (axes[0, 0], 'n_bouts', 'Number of Bouts per Trial'),
+        (axes[0, 1], 'mean_licks_bout', 'Mean Licks per Bout'),
+        (axes[1, 0], 'n_clusters', 'Number of Clusters per Trial'),
+        (axes[1, 1], 'mean_licks_cluster', 'Mean Licks per Cluster'),
     ]
 
     quarter_labels = ['Q1', 'Q2', 'Q3', 'Q4']
     x = np.arange(4)
-    offset = 0.12  # horizontal nudge so sucrose and water dots don't overlap
+    offset = 0.12  # pushes water + sucrose dots slightly apart **adjust
 
     for ax, metric, title in plot_info:
 
-        # collect each rat's quarter-mean for this metric
+        # collect each rat's quarter mean for this metric
         suc_ind = {q: [] for q in range(4)}
         wat_ind = {q: [] for q in range(4)}
 
@@ -499,20 +490,20 @@ def plot_bout_cluster_analysis(grid, win_start=-2, win_end=13):
         suc_group = [np.mean(suc_ind[q]) if suc_ind[q] else np.nan for q in range(4)]
         wat_group = [np.mean(wat_ind[q]) if wat_ind[q] else np.nan for q in range(4)]
 
-        # plot individual rat values as small dots (no jitter)
+        # plot individual rat values as small dots
         for q in range(4):
             ax.scatter([x[q] - offset] * len(suc_ind[q]), suc_ind[q],
                        color='orange', alpha=0.5, s=25, zorder=2)
             ax.scatter([x[q] + offset] * len(wat_ind[q]), wat_ind[q],
                        color='blue', alpha=0.5, s=25, zorder=2)
 
-        # plot group means as larger squares with black outlines
+        # plot group means as larger squares w/ black outlines
         ax.scatter(x - offset, suc_group, color='orange', s=80, zorder=3,
                    marker='s', edgecolors='black', linewidths=0.5, label='Sucrose')
         ax.scatter(x + offset, wat_group, color='blue', s=80, zorder=3,
                    marker='s', edgecolors='black', linewidths=0.5, label='Water')
 
-        # label axes and add a legend
+        # label axes and add legend
         ax.set_xticks(x)
         ax.set_xticklabels(quarter_labels)
         ax.set_xlabel('Session Quarter')
@@ -529,13 +520,73 @@ def plot_bout_cluster_analysis(grid, win_start=-2, win_end=13):
     plt.show()
 
 
+def plot_cs_to_response_latency(grid, etoh_id):
+    """
+    Plots the latency/time difference from CS onset --> operant response,
+    separately for surprise and choice trials, with one line per reward type.
+
+    Surprise trials: operant response = first port entry after CS onset
+    Choice trials: operant response = whichever lever press (L or R) fired in that trial's window
+
+    Two subplots:
+        Left: Surprise trials — water vs ethanol latency over trials
+        Right: Choice trials — water vs ethanol latency over trials
+
+    x-axis: trial number (across all sessions, cumulative)
+    y-axis: latency in seconds
+    """
+
+    # make lists for latencies (4 lists)
+    
+    etoh_forced_lat = []
+    water_forced_lat = []
+    etoh_choice_lat = []
+    water_choice_lat = []
+
+
+    # loop through each session
+    
+
+        # make separate variables for important variables
+
+        # pull trial id (water vs etoh)
+
+        # go through each trial
+
+        # get time window (time stamps for beginning + end) for this trial
+
+        # SURPRISE TRIALS (id 1 or 2)
+            
+            # find first port entry after CS onset within this trial's window
+
+            # store under correct reward type
+
+        # CHOICE TRIALS (id 3)
+
+            # elif t == 3:
+
+            # check which lever was pressed within this trial's window
+
+            # figure out which one fired, calculate latency
+
+            # figure out which reward the rat chose based on which side it pressed + whether that side is etoh/water for this rat
+
+        
+        # plot + formatting
+            
+
+
+
+
+
+
 if __name__ == '__main__':
 
     # load all subject files from the data folder
     data_dir = './MPCdata_MJ'
     metadata_df, grid = load_data(data_dir)
 
-    # --- quick sanity check: pick a random session and print one value ---
+    # --- debugging ---
     import random
     keys = list(grid.keys())
     test_key = random.choice(keys)
@@ -552,3 +603,145 @@ if __name__ == '__main__':
 
     # --- bout & cluster analysis ---
     plot_bout_cluster_analysis(grid)
+
+
+
+
+"""
+
+def plot_cs_to_operant_latency(grid, etoh_id=7):
+    
+    Plots the latency (in seconds) from CS onset to operant response,
+    separately for surprise and choice trials, with one line per reward type.
+
+    Surprise trials: operant response = first port entry after CS onset
+    Choice trials: operant response = whichever lever press (L or R) fired in that trial's window
+
+    Two subplots:
+        Left:  Surprise trials — water vs ethanol latency over trials
+        Right: Choice trials — water vs ethanol latency over trials
+
+    x-axis: trial number (across all sessions, cumulative)
+    y-axis: latency in seconds
+    
+
+    # storage for latencies across all sessions
+    # each list will hold one value per trial, in order
+    suc_surprise_lat = []   # water surprise latencies
+    eth_surprise_lat = []   # ethanol surprise latencies
+    suc_choice_lat = []     # water choice latencies
+    eth_choice_lat = []     # ethanol choice latencies
+
+    # --- loop through every session ---
+    for (rat, date), data in grid.items():
+
+        licks = data['Lick']
+        ids = data['TrialID']
+        cues = data['CS_start']
+        rew_L = data['rewON_L']
+        rew_R = data['rewON_R']
+        port_enter = data['PortEnter']
+        lp_L = data['rewLP_L']   # left lever press timestamps
+        lp_R = data['rewLP_R']   # right lever press timestamps
+        n = len(ids)
+
+        # --- figure out which trial ID is ethanol vs water for this rat ---
+        if data['rewID_L'][0] == etoh_id:
+            eth_trial = 1   # ethanol on left, trial 1 fires left
+            wat_trial = 2   # water on right, trial 2 fires right
+        else:
+            eth_trial = 2
+            wat_trial = 1
+
+        # --- go through each trial ---
+        for i in range(n):
+            t = ids[i]
+
+            # get time window for this trial
+            cue = cues[i]
+            nxt = cues[i + 1] if i < n - 1 else np.inf
+
+            # --- SURPRISE TRIALS (TrialID 1 or 2) ---
+            if t == 1 or t == 2:
+
+                # find first port entry after CS onset within this trial's window
+                in_trial = (port_enter >= cue) & (port_enter < nxt)
+                if not np.any(in_trial):
+                    continue
+
+                # first port entry after cue
+                first_entry = port_enter[in_trial][0]
+                latency = first_entry - cue
+
+                # store under correct reward type
+                if t == eth_trial:
+                    eth_surprise_lat.append(latency)
+                else:
+                    suc_surprise_lat.append(latency)
+
+            # --- CHOICE TRIALS (TrialID 3) ---
+            elif t == 3:
+
+                # check which lever was pressed within this trial's window
+                lp_L_in = lp_L[(lp_L >= cue) & (lp_L < nxt)]
+                lp_R_in = lp_R[(lp_R >= cue) & (lp_R < nxt)]
+
+                # figure out which one fired and compute latency
+                if len(lp_L_in) > 0 and len(lp_R_in) > 0:
+                    # both fired — use whichever came first
+                    press_time = min(lp_L_in[0], lp_R_in[0])
+                    pressed_side = 'L' if lp_L_in[0] < lp_R_in[0] else 'R'
+                elif len(lp_L_in) > 0:
+                    press_time = lp_L_in[0]
+                    pressed_side = 'L'
+                elif len(lp_R_in) > 0:
+                    press_time = lp_R_in[0]
+                    pressed_side = 'R'
+                else:
+                    continue  # no lever press found, skip trial
+
+                latency = press_time - cue
+
+                # figure out which reward the rat chose based on which side it pressed
+                # and whether that side is ethanol or water for this rat
+                if pressed_side == 'L':
+                    chose_eth = (data['rewID_L'][0] == etoh_id)
+                else:
+                    chose_eth = (data['rewID_L'][0] != etoh_id)
+
+                if chose_eth:
+                    eth_choice_lat.append(latency)
+                else:
+                    suc_choice_lat.append(latency)
+
+    # --- plot ---
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
+
+    # surprise trials subplot
+    ax1.scatter(range(len(eth_surprise_lat)), eth_surprise_lat,
+                color='darkorange', s=10, alpha=0.5, label='Ethanol')
+    ax1.scatter(range(len(suc_surprise_lat)), suc_surprise_lat,
+                color='blue', s=10, alpha=0.5, label='Water')
+    ax1.set_xlabel('Trial Number')
+    ax1.set_ylabel('Latency (s)')
+    ax1.set_title('Surprise Trials: CS → Port Entry', fontweight='bold')
+    ax1.legend()
+
+    # choice trials subplot
+    ax2.scatter(range(len(eth_choice_lat)), eth_choice_lat,
+                color='darkorange', s=10, alpha=0.5, label='Ethanol')
+    ax2.scatter(range(len(suc_choice_lat)), suc_choice_lat,
+                color='blue', s=10, alpha=0.5, label='Water')
+    ax2.set_xlabel('Trial Number')
+    ax2.set_ylabel('Latency (s)')
+    ax2.set_title('Choice Trials: CS → Lever Press', fontweight='bold')
+    ax2.legend()
+
+    plt.suptitle('CS Onset to Operant Response Latency', fontsize=14, fontweight='bold', y=1.01)
+    fig.text(0.5, 0.96, 'Phase 4 Training  |  Ethanol vs Water',
+             ha='center', fontsize=11, fontstyle='italic', color='gray')
+    plt.tight_layout()
+    plt.savefig('cs_to_operant_latency.png', dpi=150)
+    plt.show()
+
+"""
