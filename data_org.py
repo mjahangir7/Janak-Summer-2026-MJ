@@ -522,11 +522,10 @@ def plot_bout_cluster_analysis(grid, win_start = -2, win_end = 13):
 
 def plot_cs_to_response_latency(grid, etoh_id):
     """
-    Plots the latency/time difference from CS onset --> operant response,
-    separately for surprise and choice trials, with one line per reward type.
+    Plots the latency (time difference) from CS onset --> operant response separately for surprise/forced and choice trials
 
     Surprise trials: operant response = first port entry after CS onset
-    Choice trials: operant response = whichever lever press (L or R) fired in that trial's window
+    Choice trials: operant response = whichever lever press (L or R) occurred in that trial's window
 
     Two subplots:
         Left: Surprise trials — water vs ethanol latency over trials
@@ -534,17 +533,20 @@ def plot_cs_to_response_latency(grid, etoh_id):
 
     x-axis: trial number (across all sessions, cumulative)
     y-axis: latency in seconds
+
+    trial IDs:
+        1 = 
     """
 
     # QUESTIONS FOR WEDNESDAY
     # 1. There are a couple data points that have super high latency, how do we handle those (could be non-trial related activity)
-    # 
+    # 2. 
 
 
     # make lists for latencies (4 lists)
     
-    etoh_forced_lat = []
-    water_forced_lat = []
+    etoh_surprise_lat = []
+    water_surprise_lat = []
     etoh_choice_lat = []
     water_choice_lat = []
 
@@ -554,15 +556,12 @@ def plot_cs_to_response_latency(grid, etoh_id):
     for (rat, date), data in grid.items():
 
         # set important variables
-        licks = data['Lick']
         ids = data['TrialID']
         cues = data['CS_start']
-        rew_L = data['rewON_L']
-        rew_R = data['rewON_R']
         port_enter = data['PortEnter']
         lp_L = data['rewLP_L']   # left lever press timestamps
         lp_R = data['rewLP_R']   # right lever press timestamps
-        n = len(ids)
+        n = len(ids) # number of trials to know how many times to loop
 
 
         # pull trial id (water vs etoh)
@@ -575,11 +574,11 @@ def plot_cs_to_response_latency(grid, etoh_id):
 
         # go through each trial
         for i in range(n):
-            t = ids[i]
+            t = ids[i] #trial type
 
             # get time window (time stamps for beginning + end) for this trial
             cue = cues[i]
-            nxt = cues[i + 1] if i < n - 1 else np.inf
+            nxt = cues[i + 1] if i < n - 1 else np.inf # inf is for last trial
 
 
         # SURPRISE TRIALS (id 1 or 2)
@@ -596,9 +595,9 @@ def plot_cs_to_response_latency(grid, etoh_id):
 
                 # store under correct reward type
                 if t == eth_trial:
-                    etoh_forced_lat.append(latency)
+                    etoh_surprise_lat.append(latency)
                 else:
-                    water_forced_lat.append(latency)
+                    water_surprise_lat.append(latency)
 
         # CHOICE TRIALS (id 3)
             # elif t == 3:
@@ -610,8 +609,8 @@ def plot_cs_to_response_latency(grid, etoh_id):
 
                 # figure out which one fired, calculate latency
                 if len(lp_L_in) > 0 and len(lp_R_in) > 0:
-                    # both fired — use whichever came first
-                    press_time = min(lp_L_in[0], lp_R_in[0])
+                    # both fired, use whichever came first **NOT SURE IF NECESSARY
+                    press_time = min(lp_L_in[0], lp_R_in[0]) #min val = quicker press
                     pressed_side = 'L' if lp_L_in[0] < lp_R_in[0] else 'R'
                 elif len(lp_L_in) > 0:
                     press_time = lp_L_in[0]
@@ -620,12 +619,12 @@ def plot_cs_to_response_latency(grid, etoh_id):
                     press_time = lp_R_in[0]
                     pressed_side = 'R'
                 else:
-                    continue  # no lever press found, skip trial
+                    continue  # no lever press, skip trial
 
                 latency = press_time - cue
 
                 # figure out which reward the rat chose based on which side it pressed 
-                # + whether that side is etoh/water for this rat
+                # + whether that side is etoh/water for this rat (kind of confusing, might rewrite)
                 if pressed_side == 'L':
                     chose_eth = (data['rewID_L'][0] == etoh_id)
                 else:
@@ -641,9 +640,9 @@ def plot_cs_to_response_latency(grid, etoh_id):
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
 
     # surprise trials subplot
-    ax1.scatter(range(len(etoh_forced_lat)), etoh_forced_lat,
+    ax1.scatter(range(len(etoh_surprise_lat)), etoh_surprise_lat,
                 color='darkorange', s=10, alpha=0.5, label='Ethanol')
-    ax1.scatter(range(len(water_forced_lat)), water_forced_lat,
+    ax1.scatter(range(len(water_surprise_lat)), water_surprise_lat,
                 color='blue', s=10, alpha=0.5, label='Water')
     ax1.set_xlabel('Trial Number')
     ax1.set_ylabel('Latency (s)')
@@ -672,6 +671,7 @@ def plot_cs_to_response_latency(grid, etoh_id):
 
 
 if __name__ == '__main__':
+    """
 
     # load all subject files from the data folder
     data_dir = './MPCdata_MJ'
@@ -695,5 +695,9 @@ if __name__ == '__main__':
     # --- bout & cluster analysis ---
     plot_bout_cluster_analysis(grid)
 
+    """
+
     # --- latency plot ---
+    data_dir = './Lotus_phase4_day2-end'
+    metadata_df, grid = load_data(data_dir)
     plot_cs_to_response_latency(grid, 7)
