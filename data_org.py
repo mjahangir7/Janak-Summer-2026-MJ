@@ -536,6 +536,11 @@ def plot_cs_to_response_latency(grid, etoh_id):
     y-axis: latency in seconds
     """
 
+    # QUESTIONS FOR WEDNESDAY
+    # 1. There are a couple data points that have super high latency, how do we handle those (could be non-trial related activity)
+    # 
+
+
     # make lists for latencies (4 lists)
     
     etoh_forced_lat = []
@@ -546,34 +551,120 @@ def plot_cs_to_response_latency(grid, etoh_id):
 
     # loop through each session
     
+    for (rat, date), data in grid.items():
 
-        # make separate variables for important variables
+        # set important variables
+        licks = data['Lick']
+        ids = data['TrialID']
+        cues = data['CS_start']
+        rew_L = data['rewON_L']
+        rew_R = data['rewON_R']
+        port_enter = data['PortEnter']
+        lp_L = data['rewLP_L']   # left lever press timestamps
+        lp_R = data['rewLP_R']   # right lever press timestamps
+        n = len(ids)
+
 
         # pull trial id (water vs etoh)
+        if data['rewID_L'][0] == etoh_id:
+            eth_trial = 1   # ethanol on left, trial 1 fires left
+            wat_trial = 2   # water on right, trial 2 fires right
+        else:
+            eth_trial = 2
+            wat_trial = 1
 
         # go through each trial
+        for i in range(n):
+            t = ids[i]
 
-        # get time window (time stamps for beginning + end) for this trial
+            # get time window (time stamps for beginning + end) for this trial
+            cue = cues[i]
+            nxt = cues[i + 1] if i < n - 1 else np.inf
+
 
         # SURPRISE TRIALS (id 1 or 2)
-            
-            # find first port entry after CS onset within this trial's window
+            if t == 1 or t == 2:
 
-            # store under correct reward type
+                # find first port entry after CS onset within this trial's window
+                in_trial = (port_enter >= cue) & (port_enter < nxt)
+                if not np.any(in_trial):
+                    continue
+
+                # first port entry after cue
+                first_entry = port_enter[in_trial][0]
+                latency = first_entry - cue
+
+                # store under correct reward type
+                if t == eth_trial:
+                    etoh_forced_lat.append(latency)
+                else:
+                    water_forced_lat.append(latency)
 
         # CHOICE TRIALS (id 3)
-
             # elif t == 3:
+            elif t == 3:
 
-            # check which lever was pressed within this trial's window
+                # check which lever was pressed within this trial's window
+                lp_L_in = lp_L[(lp_L >= cue) & (lp_L < nxt)]
+                lp_R_in = lp_R[(lp_R >= cue) & (lp_R < nxt)]
 
-            # figure out which one fired, calculate latency
+                # figure out which one fired, calculate latency
+                if len(lp_L_in) > 0 and len(lp_R_in) > 0:
+                    # both fired — use whichever came first
+                    press_time = min(lp_L_in[0], lp_R_in[0])
+                    pressed_side = 'L' if lp_L_in[0] < lp_R_in[0] else 'R'
+                elif len(lp_L_in) > 0:
+                    press_time = lp_L_in[0]
+                    pressed_side = 'L'
+                elif len(lp_R_in) > 0:
+                    press_time = lp_R_in[0]
+                    pressed_side = 'R'
+                else:
+                    continue  # no lever press found, skip trial
 
-            # figure out which reward the rat chose based on which side it pressed + whether that side is etoh/water for this rat
+                latency = press_time - cue
+
+                # figure out which reward the rat chose based on which side it pressed 
+                # + whether that side is etoh/water for this rat
+                if pressed_side == 'L':
+                    chose_eth = (data['rewID_L'][0] == etoh_id)
+                else:
+                    chose_eth = (data['rewID_L'][0] != etoh_id)
+
+                if chose_eth:
+                    etoh_choice_lat.append(latency)
+                else:
+                    water_choice_lat.append(latency)
 
         
-        # plot + formatting
-            
+    # plot + formatting
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
+
+    # surprise trials subplot
+    ax1.scatter(range(len(etoh_forced_lat)), etoh_forced_lat,
+                color='darkorange', s=10, alpha=0.5, label='Ethanol')
+    ax1.scatter(range(len(water_forced_lat)), water_forced_lat,
+                color='blue', s=10, alpha=0.5, label='Water')
+    ax1.set_xlabel('Trial Number')
+    ax1.set_ylabel('Latency (s)')
+    ax1.set_title('Surprise Trials: CS → Port Entry', fontweight='bold')
+    ax1.legend()
+
+    # choice trials subplot
+    ax2.scatter(range(len(etoh_choice_lat)), etoh_choice_lat,
+                color='darkorange', s=10, alpha=0.5, label='Ethanol')
+    ax2.scatter(range(len(water_choice_lat)), water_choice_lat,
+                color='blue', s=10, alpha=0.5, label='Water')
+    ax2.set_xlabel('Trial Number')
+    ax2.set_ylabel('Latency (s)')
+    ax2.set_title('Choice Trials: CS → Lever Press', fontweight='bold')
+    ax2.legend()
+
+    plt.suptitle('CS Onset to Operant Response Latency', fontsize=14, fontweight='bold', y=0.93)
+    fig.text(0.5, 0.85, 'Ethanol vs Water', ha='center', fontsize=11, fontstyle='italic', color='gray')
+    plt.tight_layout(rect=[0, 0, 1, 0.87])
+    plt.savefig('cs_to_operant_latency.png', dpi=150)
+    plt.show()
 
 
 
@@ -604,144 +695,5 @@ if __name__ == '__main__':
     # --- bout & cluster analysis ---
     plot_bout_cluster_analysis(grid)
 
-
-
-
-"""
-
-def plot_cs_to_operant_latency(grid, etoh_id=7):
-    
-    Plots the latency (in seconds) from CS onset to operant response,
-    separately for surprise and choice trials, with one line per reward type.
-
-    Surprise trials: operant response = first port entry after CS onset
-    Choice trials: operant response = whichever lever press (L or R) fired in that trial's window
-
-    Two subplots:
-        Left:  Surprise trials — water vs ethanol latency over trials
-        Right: Choice trials — water vs ethanol latency over trials
-
-    x-axis: trial number (across all sessions, cumulative)
-    y-axis: latency in seconds
-    
-
-    # storage for latencies across all sessions
-    # each list will hold one value per trial, in order
-    suc_surprise_lat = []   # water surprise latencies
-    eth_surprise_lat = []   # ethanol surprise latencies
-    suc_choice_lat = []     # water choice latencies
-    eth_choice_lat = []     # ethanol choice latencies
-
-    # --- loop through every session ---
-    for (rat, date), data in grid.items():
-
-        licks = data['Lick']
-        ids = data['TrialID']
-        cues = data['CS_start']
-        rew_L = data['rewON_L']
-        rew_R = data['rewON_R']
-        port_enter = data['PortEnter']
-        lp_L = data['rewLP_L']   # left lever press timestamps
-        lp_R = data['rewLP_R']   # right lever press timestamps
-        n = len(ids)
-
-        # --- figure out which trial ID is ethanol vs water for this rat ---
-        if data['rewID_L'][0] == etoh_id:
-            eth_trial = 1   # ethanol on left, trial 1 fires left
-            wat_trial = 2   # water on right, trial 2 fires right
-        else:
-            eth_trial = 2
-            wat_trial = 1
-
-        # --- go through each trial ---
-        for i in range(n):
-            t = ids[i]
-
-            # get time window for this trial
-            cue = cues[i]
-            nxt = cues[i + 1] if i < n - 1 else np.inf
-
-            # --- SURPRISE TRIALS (TrialID 1 or 2) ---
-            if t == 1 or t == 2:
-
-                # find first port entry after CS onset within this trial's window
-                in_trial = (port_enter >= cue) & (port_enter < nxt)
-                if not np.any(in_trial):
-                    continue
-
-                # first port entry after cue
-                first_entry = port_enter[in_trial][0]
-                latency = first_entry - cue
-
-                # store under correct reward type
-                if t == eth_trial:
-                    eth_surprise_lat.append(latency)
-                else:
-                    suc_surprise_lat.append(latency)
-
-            # --- CHOICE TRIALS (TrialID 3) ---
-            elif t == 3:
-
-                # check which lever was pressed within this trial's window
-                lp_L_in = lp_L[(lp_L >= cue) & (lp_L < nxt)]
-                lp_R_in = lp_R[(lp_R >= cue) & (lp_R < nxt)]
-
-                # figure out which one fired and compute latency
-                if len(lp_L_in) > 0 and len(lp_R_in) > 0:
-                    # both fired — use whichever came first
-                    press_time = min(lp_L_in[0], lp_R_in[0])
-                    pressed_side = 'L' if lp_L_in[0] < lp_R_in[0] else 'R'
-                elif len(lp_L_in) > 0:
-                    press_time = lp_L_in[0]
-                    pressed_side = 'L'
-                elif len(lp_R_in) > 0:
-                    press_time = lp_R_in[0]
-                    pressed_side = 'R'
-                else:
-                    continue  # no lever press found, skip trial
-
-                latency = press_time - cue
-
-                # figure out which reward the rat chose based on which side it pressed
-                # and whether that side is ethanol or water for this rat
-                if pressed_side == 'L':
-                    chose_eth = (data['rewID_L'][0] == etoh_id)
-                else:
-                    chose_eth = (data['rewID_L'][0] != etoh_id)
-
-                if chose_eth:
-                    eth_choice_lat.append(latency)
-                else:
-                    suc_choice_lat.append(latency)
-
-    # --- plot ---
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
-
-    # surprise trials subplot
-    ax1.scatter(range(len(eth_surprise_lat)), eth_surprise_lat,
-                color='darkorange', s=10, alpha=0.5, label='Ethanol')
-    ax1.scatter(range(len(suc_surprise_lat)), suc_surprise_lat,
-                color='blue', s=10, alpha=0.5, label='Water')
-    ax1.set_xlabel('Trial Number')
-    ax1.set_ylabel('Latency (s)')
-    ax1.set_title('Surprise Trials: CS → Port Entry', fontweight='bold')
-    ax1.legend()
-
-    # choice trials subplot
-    ax2.scatter(range(len(eth_choice_lat)), eth_choice_lat,
-                color='darkorange', s=10, alpha=0.5, label='Ethanol')
-    ax2.scatter(range(len(suc_choice_lat)), suc_choice_lat,
-                color='blue', s=10, alpha=0.5, label='Water')
-    ax2.set_xlabel('Trial Number')
-    ax2.set_ylabel('Latency (s)')
-    ax2.set_title('Choice Trials: CS → Lever Press', fontweight='bold')
-    ax2.legend()
-
-    plt.suptitle('CS Onset to Operant Response Latency', fontsize=14, fontweight='bold', y=1.01)
-    fig.text(0.5, 0.96, 'Phase 4 Training  |  Ethanol vs Water',
-             ha='center', fontsize=11, fontstyle='italic', color='gray')
-    plt.tight_layout()
-    plt.savefig('cs_to_operant_latency.png', dpi=150)
-    plt.show()
-
-"""
+    # --- latency plot ---
+    plot_cs_to_response_latency(grid, 7)
