@@ -20,6 +20,7 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib as mpl
+import math
 
 # font for all plots
 mpl.rcParams['font.family'] = 'Arial'
@@ -538,9 +539,11 @@ def plot_cs_to_response_latency(grid, etoh_id):
         1 = 
     """
 
-    # QUESTIONS FOR WEDNESDAY
-    # 1. There are a couple data points that have super high latency, how do we handle those (could be non-trial related activity)
-    # 2. 
+    # histogram
+    # 1. make bin size a variable
+    # 2. make bars for each somewhat transparent so that we can see the overlap
+    # 3. format colors to rgb (triplet)
+    # 4. # of trials on y-axis, latency on x axis
 
 
     # make lists for latencies (4 lists)
@@ -637,7 +640,185 @@ def plot_cs_to_response_latency(grid, etoh_id):
 
         
     # plot + formatting
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
+
+    # histogram binning
+    custom_bins_ax1 = np.linspace(0, 17, 80)
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5), tight_layout=True)
+
+    ax1.hist(etoh_surprise_lat, bins=custom_bins_ax1, alpha=0.5, label="EtOH")
+    ax1.hist(water_surprise_lat, bins=custom_bins_ax1, alpha=0.5, label="Water")
+    ax1.set_title("Surprise Trials: CS → Port Entry")
+    ax1.set_xlabel('Latency (s)')
+    ax1.set_ylabel('Number of trials')
+    ax1.set_xlim(0, 17)
+    ax1.legend()
+
+    custom_bins_ax2 = np.linspace(0, 100, 160)
+    ax2.hist(etoh_choice_lat, bins=custom_bins_ax2, alpha=0.5, label="EtOH")
+    ax2.hist(water_choice_lat, bins=custom_bins_ax2, alpha=0.5, label="Water")
+    ax2.set_title("Choice Trials: CS → Lever Press")
+    ax2.set_xlabel('Latency (s)')
+    ax2.set_ylabel('Number of trials')
+    ax2.set_xlim(0, 100)
+    ax2.legend()
+
+    plt.show()
+
+
+
+
+def plot_cs_to_log_of_response_latency(grid, etoh_id):
+    """
+    Plots the latency (time difference) from CS onset --> operant response separately for surprise/forced and choice trials
+
+    Surprise trials: operant response = first port entry after CS onset
+    Choice trials: operant response = whichever lever press (L or R) occurred in that trial's window
+
+    Two subplots:
+        Left: Surprise trials — water vs ethanol latency over trials
+        Right: Choice trials — water vs ethanol latency over trials
+
+    x-axis: trial number (across all sessions, cumulative)
+    y-axis: latency in seconds
+
+    trial IDs:
+        1 = 
+    """
+
+    # histogram
+    # 1. make bin size a variable
+    # 2. make bars for each somewhat transparent so that we can see the overlap
+    # 3. format colors to rgb (triplet)
+    # 4. # of trials on y-axis, latency on x axis
+
+
+    # make lists for latencies (4 lists)
+    
+    etoh_surprise_lat = []
+    water_surprise_lat = []
+    etoh_choice_lat = []
+    water_choice_lat = []
+
+
+    # loop through each session
+    
+    for (rat, date), data in grid.items():
+
+        # set important variables
+        ids = data['TrialID']
+        cues = data['CS_start']
+        port_enter = data['PortEnter']
+        lp_L = data['rewLP_L']   # left lever press timestamps
+        lp_R = data['rewLP_R']   # right lever press timestamps
+        n = len(ids) # number of trials to know how many times to loop
+
+
+        # pull trial id (water vs etoh)
+        if data['rewID_L'][0] == etoh_id:
+            eth_trial = 1   # ethanol on left, trial 1 fires left
+            wat_trial = 2   # water on right, trial 2 fires right
+        else:
+            eth_trial = 2
+            wat_trial = 1
+
+        # go through each trial
+        for i in range(n):
+            t = ids[i] #trial type
+
+            # get time window (time stamps for beginning + end) for this trial
+            cue = cues[i]
+            nxt = cues[i + 1] if i < n - 1 else np.inf # inf is for last trial
+
+
+        # SURPRISE TRIALS (id 1 or 2)
+            if t == 1 or t == 2:
+
+                # find first port entry after CS onset within this trial's window
+                in_trial = (port_enter >= cue) & (port_enter < nxt)
+                if not np.any(in_trial):
+                    continue
+
+                # first port entry after cue
+                first_entry = port_enter[in_trial][0]
+                latency = first_entry - cue
+                if latency == 0:
+                    latency = 0.01
+
+                # store under correct reward type
+                if t == eth_trial:
+                    etoh_surprise_lat.append(math.log10(latency))
+                else:
+                    water_surprise_lat.append(math.log10(latency))
+
+        # CHOICE TRIALS (id 3)
+            # elif t == 3:
+            elif t == 3:
+
+                # check which lever was pressed within this trial's window
+                lp_L_in = lp_L[(lp_L >= cue) & (lp_L < nxt)]
+                lp_R_in = lp_R[(lp_R >= cue) & (lp_R < nxt)]
+
+                # figure out which one fired, calculate latency
+                if len(lp_L_in) > 0 and len(lp_R_in) > 0:
+                    # both fired, use whichever came first **NOT SURE IF NECESSARY
+                    press_time = min(lp_L_in[0], lp_R_in[0]) #min val = quicker press
+                    pressed_side = 'L' if lp_L_in[0] < lp_R_in[0] else 'R'
+                elif len(lp_L_in) > 0:
+                    press_time = lp_L_in[0]
+                    pressed_side = 'L'
+                elif len(lp_R_in) > 0:
+                    press_time = lp_R_in[0]
+                    pressed_side = 'R'
+                else:
+                    continue  # no lever press, skip trial
+
+                latency = press_time - cue
+                if latency == 0:
+                    latency = 0.01
+
+                # figure out which reward the rat chose based on which side it pressed 
+                # + whether that side is etoh/water for this rat (kind of confusing, might rewrite)
+                if pressed_side == 'L':
+                    chose_eth = (data['rewID_L'][0] == etoh_id)
+                else:
+                    chose_eth = (data['rewID_L'][0] != etoh_id)
+
+                if chose_eth:
+                    etoh_choice_lat.append(math.log10(latency))
+                else:
+                    water_choice_lat.append(math.log10(latency))
+
+    
+    # plot + formatting
+
+    # histogram binning
+    #custom_bins_ax1 = np.linspace(0, 17, 80)
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5), tight_layout=True)
+
+    ax1.hist(etoh_surprise_lat, bins=80, alpha=0.5, label="EtOH")
+    ax1.hist(water_surprise_lat, bins=80, alpha=0.5, label="Water")
+    ax1.set_title("Surprise Trials: CS → Port Entry")
+    ax1.set_xlabel('Log of Latency (s)')
+    ax1.set_ylabel('Number of trials')
+    #ax1.set_xlim(0, 17)
+    ax1.legend()
+
+    #custom_bins_ax2 = np.linspace(0, 100, 160)
+    ax2.hist(etoh_choice_lat, bins=160, alpha=0.5, label="EtOH")
+    ax2.hist(water_choice_lat, bins=160, alpha=0.5, label="Water")
+    ax2.set_title("Choice Trials: CS → Lever Press")
+    ax2.set_xlabel('Log of Latency (s)')
+    ax2.set_ylabel('Number of trials')
+    #ax2.set_xlim(0, 100)
+    ax2.legend()
+
+    plt.tight_layout(rect=[0, 0, 1, 0.87])
+    plt.suptitle('CS Onset to Operant Response Latency', fontsize=14, fontweight='bold', x=0.52, y=0.93)
+    plt.show()
+
+
+
+"""    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
 
     # surprise trials subplot
     ax1.scatter(range(len(etoh_surprise_lat)), etoh_surprise_lat,
@@ -663,7 +844,7 @@ def plot_cs_to_response_latency(grid, etoh_id):
     fig.text(0.5, 0.85, 'Ethanol vs Water', ha='center', fontsize=11, fontstyle='italic', color='gray')
     plt.tight_layout(rect=[0, 0, 1, 0.87])
     plt.savefig('cs_to_operant_latency.png', dpi=150)
-    plt.show()
+    plt.show()"""
 
 
 
@@ -695,9 +876,15 @@ if __name__ == '__main__':
     # --- bout & cluster analysis ---
     plot_bout_cluster_analysis(grid)
 
-    """
+    
 
     # --- latency plot ---
     data_dir = './Lotus_phase4_day2-end'
     metadata_df, grid = load_data(data_dir)
     plot_cs_to_response_latency(grid, 7)
+    """
+
+    # --- latency plot (log transformation) ---
+    data_dir = './Lotus_phase4_day2-end'
+    metadata_df, grid = load_data(data_dir)
+    plot_cs_to_log_of_response_latency(grid, 7)
