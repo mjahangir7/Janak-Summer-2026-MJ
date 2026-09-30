@@ -24,6 +24,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 import math
+from scipy import stats
+
 
 # font for all plots
 mpl.rcParams['font.family'] = 'Arial'
@@ -285,8 +287,10 @@ def plot_cs_to_response_latency(grid, etoh_id):
     # plot + formatting
 
     # histogram binning
+    plt.rcParams.update({'font.size': 25})
     custom_bins_ax1 = np.linspace(0, 17, 80)
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5), tight_layout=True)
+
 
     ax1.hist(etoh_surprise_lat, bins=custom_bins_ax1, alpha=0.5, label="EtOH")
     ax1.hist(water_surprise_lat, bins=custom_bins_ax1, alpha=0.5, label="Water")
@@ -424,22 +428,39 @@ def plot_cs_to_log_of_response_latency(grid, etoh_id):
                 else:
                     water_choice_lat.append(math.log10(latency))
 
+
+
+
+    # UNPAIRED T-TEST
+    # skip testing normality, test variance
+    # if p<0.05, diff. test
+
+    # test homogeneity of variance (levene's test) on surprise trials
+    print(stats.levene(etoh_surprise_lat, water_surprise_lat)) # p = 0.6594 *** good for unpaired t-test
+    print(stats.ttest_ind(etoh_surprise_lat, water_surprise_lat, equal_var=True))
+
+    # choice trials 
+    print(stats.levene(etoh_choice_lat, water_choice_lat)) # p = 0.0192 *** p < 0.05, so use welch's t-test
+    print(stats.ttest_ind(etoh_choice_lat, water_choice_lat, equal_var=False))
+
+
     
     # plot + formatting
 
     # histogram binning
 
+    plt.rcParams.update({'font.size': 14})
     #custom_bins_ax1 = np.linspace(0, 17, 80)
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5), tight_layout=True)
 
-    etoh_color = (0.18, 0.62, 0.18)
-    water_color = (0.12, 0.47, 0.71)
+    etoh_color = (0.1, 0.4, 0.6)
+    water_color = (0.1, 0.5, 0.2)
 
     ax1.hist(etoh_surprise_lat, color=etoh_color, bins=80, alpha=0.5, label="EtOH")
     ax1.hist(water_surprise_lat, color=water_color, bins=80, alpha=0.5, label="Water")
     ax1.set_title("Surprise Trials: CS → Port Entry")
-    ax1.set_xlabel('Log of Latency (s)')
-    ax1.set_ylabel('Number of trials')
+    ax1.set_xlabel('Log of Latency (s)', fontsize=18)
+    ax1.set_ylabel('Number of trials', fontsize=18)
     #ax1.set_xlim(0, 17)
     ax1.legend()
 
@@ -447,26 +468,41 @@ def plot_cs_to_log_of_response_latency(grid, etoh_id):
     ax2.hist(etoh_choice_lat, color=etoh_color, bins=160, alpha=0.5, label="EtOH")
     ax2.hist(water_choice_lat, color=water_color, bins=160, alpha=0.5, label="Water")
     ax2.set_title("Choice Trials: CS → Lever Press")
-    ax2.set_xlabel('Log of Latency (s)')
-    ax2.set_ylabel('Number of trials')
+    ax2.set_xlabel('Log of Latency (s)', fontsize=18)
+    ax2.set_ylabel('Number of trials', fontsize=18)
     #ax2.set_xlim(0, 100)
     ax2.legend()
 
     plt.tight_layout(rect=[0, 0, 1, 0.87])
-    plt.suptitle('CS Onset to Operant Response Latency', fontsize=14, fontweight='bold', x=0.52, y=0.93)
+    plt.suptitle('CS Onset to Operant Response Latency', fontsize=20, fontweight='bold', x=0.52, y=0.93)
     plt.show()
 
 
+
+def plot_time_spent_in_port():
+    # same layout, one plot for etoh/h2o suprise, one for etoh/h2o choice
+    # how many centiseconds in b/w reward on and vacuum is always going to be c5 (says 3000, but that is 30 seconds)
+        # window they have to consume reward, all port entries in there can count
+        # won't be super clean
+
+    # even if in port at time of vacuum cut off
+    # if port entry is in window and exit is outside, then create a new "end timestamp @ 30 seconds" --> becomes new time spent in port
+    # if port entry is +- 1/100 of a second of the reward delivery (pump on), then they can be considered the same
+    
+    return None
 
 
 
 
 if __name__ == '__main__':
 
+    """
     # --- latency plot ---
     data_dir = './Lotus_phase4_day2-end'
     metadata_df, grid = load_data(data_dir)
     plot_cs_to_response_latency(grid, 7)
+
+    """
 
     # --- latency plot (log transformation) ---
     data_dir = './Lotus_phase4_day2-end'
