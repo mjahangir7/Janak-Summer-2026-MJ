@@ -792,11 +792,15 @@ def plot_cs_to_log_of_response_latency(grid, etoh_id):
     # plot + formatting
 
     # histogram binning
+
     #custom_bins_ax1 = np.linspace(0, 17, 80)
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5), tight_layout=True)
 
-    ax1.hist(etoh_surprise_lat, bins=80, alpha=0.5, label="EtOH")
-    ax1.hist(water_surprise_lat, bins=80, alpha=0.5, label="Water")
+    etoh_color = (0.18, 0.62, 0.18)
+    water_color = (0.12, 0.47, 0.71)
+
+    ax1.hist(etoh_surprise_lat, color=etoh_color, bins=80, alpha=0.5, label="EtOH")
+    ax1.hist(water_surprise_lat, color=water_color, bins=80, alpha=0.5, label="Water")
     ax1.set_title("Surprise Trials: CS → Port Entry")
     ax1.set_xlabel('Log of Latency (s)')
     ax1.set_ylabel('Number of trials')
@@ -804,8 +808,8 @@ def plot_cs_to_log_of_response_latency(grid, etoh_id):
     ax1.legend()
 
     #custom_bins_ax2 = np.linspace(0, 100, 160)
-    ax2.hist(etoh_choice_lat, bins=160, alpha=0.5, label="EtOH")
-    ax2.hist(water_choice_lat, bins=160, alpha=0.5, label="Water")
+    ax2.hist(etoh_choice_lat, color=etoh_color, bins=160, alpha=0.5, label="EtOH")
+    ax2.hist(water_choice_lat, color=water_color, bins=160, alpha=0.5, label="Water")
     ax2.set_title("Choice Trials: CS → Lever Press")
     ax2.set_xlabel('Log of Latency (s)')
     ax2.set_ylabel('Number of trials')
