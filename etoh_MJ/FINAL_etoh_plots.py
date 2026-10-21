@@ -502,32 +502,47 @@ def plot_cs_to_log_of_response_latency(grid, etoh_id):
 
 
 def plot_time_spent_in_port(grid, etoh_id):
-    # same layout, one plot for etoh/h2o suprise, one for etoh/h2o choice
-    # how many centiseconds in b/w reward on and vacuum is always going to be c5 (says 3000, but that is 30 seconds)
-        # window they have to consume reward, all port entries in there can count
-        # won't be super clean
+    """
+    Histogram: Plots total time spent in port during the reward consumption window (pump on --> vacuum on)
+    separately for surprise/forced and choice trials
 
-    # even if in port at time of vacuum cut off
-    # if port entry is in window and exit is outside, then create a new "end timestamp @ 30 seconds" --> becomes new time spent in port
-    # if port entry is +- 1/100 of a second of the reward delivery (pump on), then they can be considered the same
-    # c5/100 --> # seconds after pump turns on that vacuum turns on
-    
+    For each trial:
+        1. Find when the pump turned on (reward delivery)
+        2. Vacuum comes on 30 seconds after pump (consumption window = pump_on to pump_on + 30)
+        3. Sum all port time during that window:
+            - if rat exits before vacuum --> exit TS - entry TS
+            - if rat stays past vacuum --> vacuum TS - entry TS (capped at vacuum)
+            - also checks if rat was already in port when pump fired
+
+    Two subplots/histograms:
+        Left: Surprise trials — water vs ethanol time in port
+        Right: Choice trials — water vs ethanol time in port
+
+    x-axis: time spent in port (seconds)
+    y-axis: # of trials/observations
+
+    """
+
+    vacuum_delay = 30  # vacuum comes on 30 seconds after pump (c5/100 = 3000 centiseconds / 100)
 
     # make lists for times spent in port (4 lists)
-    
+
     etoh_surprise_time = []
     water_surprise_time = []
     etoh_choice_time = []
     water_choice_time = []
 
     # loop through each session
-    
+
     for (group, rat, date), data in grid.items():
 
         # set important variables
         ids = data['TrialID']
         cues = data['CS_start']
         port_enter = data['PortEnter']
+        port_exit = data['PortExit']
+        rew_on_L = data['rewON_L']  # left pump-on timestamps
+        rew_on_R = data['rewON_R']  # right pump-on timestamps
         lp_L = data['rewLP_L']   # left lever press timestamps
         lp_R = data['rewLP_R']   # right lever press timestamps
         n = len(ids) # number of trials to know how many times to loop
@@ -543,7 +558,7 @@ def plot_time_spent_in_port(grid, etoh_id):
 
         # go through each trial
         for i in range(n):
-            t = ids[i] #trial type
+            t = ids[i] # trial type
 
             # get time window (time stamps for beginning + end) for this trial
             cue = cues[i]
@@ -553,74 +568,145 @@ def plot_time_spent_in_port(grid, etoh_id):
         # SURPRISE TRIALS (id 1 or 2)
             if t == 1 or t == 2:
 
-                # find first port entry after CS onset within this trial's window
-                in_trial = (port_enter >= cue) & (port_enter < nxt)
-                if not np.any(in_trial):
+                # find pump-on time: trial type 1 fires left, type 2 fires right
+                if t == 1:
+                    rew_on = rew_on_L
+                else:
+                    rew_on = rew_on_R
+
+                pump_in_trial = rew_on[(rew_on >= cue) & (rew_on < nxt)]
+                if len(pump_in_trial) == 0:
                     continue
+                pump_on = pump_in_trial[0]
+                vacuum_time = pump_on + vacuum_delay
 
-                # first port entry after cue
-                first_entry = port_enter[in_trial][0]
-                latency = first_entry - cue
-                if latency == 0:
-                    latency = 0.01
+                # compute total time in port during "consumption window"
+                total_time = 0.0
 
-                # calculate + save time window of reward delivery and vacuum
-                # c5/100 = 30 seconds
+                # check if rat was already in port when pump comes on
+                entries_before = port_enter[port_enter < pump_on]
+                if len(entries_before) > 0:
+                    last_entry_before = entries_before[-1]
+                    exits_after = port_exit[port_exit > last_entry_before]
+                    if len(exits_after) > 0 and exits_after[0] > pump_on:
+                        end_time = min(exits_after[0], vacuum_time)
+                        total_time += end_time - pump_on
 
-                # calculate "time spent in port"
-                    # if rat leaves port before vacuum --> leaves port TS - enters port TS
-                    # otherwise --> vacuum - port entry TS
+                # find port entries within the consumption window
+                entries_in_window = port_enter[(port_enter >= pump_on) & (port_enter < vacuum_time)]
+                for entry in entries_in_window:
+                    exits_after = port_exit[port_exit > entry]
+                    if len(exits_after) > 0:
+                        end_time = min(exits_after[0], vacuum_time)
+                    else:
+                        end_time = vacuum_time
+                    total_time += end_time - entry
 
+                if total_time <= 0:
+                    continue
 
                 # store under correct reward type
                 if t == eth_trial:
-                    # append time spent in port to etoh suprise list
-                    etoh_surprise_time.append(math.log10(latency))
+                    etoh_surprise_time.append(total_time)
                 else:
-                    # append time spent in port to water surprise list
-                    water_surprise_time.append(math.log10(latency))
+                    water_surprise_time.append(total_time)
 
         # CHOICE TRIALS (id 3)
-            # elif t == 3:
             elif t == 3:
 
-                # PROBABLY DON'T NEED 
                 # check which lever was pressed within this trial's window
                 lp_L_in = lp_L[(lp_L >= cue) & (lp_L < nxt)]
                 lp_R_in = lp_R[(lp_R >= cue) & (lp_R < nxt)]
 
-                # figure out which one fired, calculate latency
+                # figure out which side was pressed
                 if len(lp_L_in) > 0 and len(lp_R_in) > 0:
-                    # both fired, use whichever came first **NOT SURE IF NECESSARY
-                    press_time = min(lp_L_in[0], lp_R_in[0]) #min val = quicker press
                     pressed_side = 'L' if lp_L_in[0] < lp_R_in[0] else 'R'
                 elif len(lp_L_in) > 0:
-                    press_time = lp_L_in[0]
                     pressed_side = 'L'
                 elif len(lp_R_in) > 0:
-                    press_time = lp_R_in[0]
                     pressed_side = 'R'
                 else:
                     continue  # no lever press, skip trial
 
-                latency = press_time - cue
-                if latency == 0:
-                    latency = 0.01
+                # find pump-on time based on which side was pressed
+                if pressed_side == 'L':
+                    rew_on = rew_on_L
+                else:
+                    rew_on = rew_on_R
 
-                # figure out which reward the rat chose based on which side it pressed 
-                # + whether that side is etoh/water for this rat (kind of confusing, might rewrite)
+                pump_in_trial = rew_on[(rew_on >= cue) & (rew_on < nxt)]
+                if len(pump_in_trial) == 0:
+                    continue
+                pump_on = pump_in_trial[0]
+                vacuum_time = pump_on + vacuum_delay
+
+                # compute total time in port during consumption window
+                total_time = 0.0
+
+                # check if rat was already in port when pump came on
+                entries_before = port_enter[port_enter < pump_on]
+                if len(entries_before) > 0:
+                    last_entry_before = entries_before[-1]
+                    exits_after = port_exit[port_exit > last_entry_before]
+                    if len(exits_after) > 0 and exits_after[0] > pump_on:
+                        end_time = min(exits_after[0], vacuum_time)
+                        total_time += end_time - pump_on
+
+                # find port entries within the consumption window
+                entries_in_window = port_enter[(port_enter >= pump_on) & (port_enter < vacuum_time)]
+                for entry in entries_in_window:
+                    exits_after = port_exit[port_exit > entry]
+                    if len(exits_after) > 0:
+                        end_time = min(exits_after[0], vacuum_time)
+                    else:
+                        end_time = vacuum_time
+                    total_time += end_time - entry
+
+                if total_time <= 0:
+                    continue
+
+                # figure out which reward the rat chose based on which side it pressed
+                # + whether that side is etoh/water for this rat
                 if pressed_side == 'L':
                     chose_eth = (data['rewID_L'][0] == etoh_id)
                 else:
                     chose_eth = (data['rewID_L'][0] != etoh_id)
 
                 if chose_eth:
-                    etoh_choice_time.append(math.log10(latency))
+                    etoh_choice_time.append(total_time)
                 else:
-                    water_choice_time.append(math.log10(latency))
+                    water_choice_time.append(total_time)
 
 
-    return None
+    # plot + formatting
+
+    plt.rcParams.update({'font.size': 14})
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5), tight_layout=True)
+
+    water_color = (0.1, 0.4, 0.6)
+    etoh_color = (0.1, 0.5, 0.2)
+
+    ax1.hist(water_surprise_time, color=water_color, bins=80, alpha=0.5, label="Water")
+    ax1.hist(etoh_surprise_time, color=etoh_color, bins=80, alpha=0.5, label="EtOH")
+    ax1.set_title("Surprise Trials")
+    ax1.set_xlabel('Time (s)', fontsize=18)
+    ax1.set_ylabel('Number of trials', fontsize=18)
+    ax1.legend()
+
+    ax2.hist(water_choice_time, color=water_color, bins=80, alpha=0.5, label="Water")
+    ax2.hist(etoh_choice_time, color=etoh_color, bins=80, alpha=0.5, label="EtOH")
+    ax2.set_title("Choice Trials")
+    ax2.set_xlabel('Time (s)', fontsize=18)
+    ax2.set_ylabel('Number of trials', fontsize=18)
+    ax2.legend()
+
+    y_max = max(ax1.get_ylim()[1], ax2.get_ylim()[1])
+    ax1.set_ylim(0, y_max)
+    ax2.set_ylim(0, y_max)
+
+    plt.tight_layout(rect=[0, 0, 1, 0.87])
+    plt.suptitle('Time Spent in Port After Reward Delivery', fontsize=20, fontweight='bold', x=0.52, y=0.93)
+    plt.show()
 
 
 
@@ -636,7 +722,14 @@ if __name__ == '__main__':
 
     """
 
+    """
     # --- latency plot (log transformation) ---
     data_dir = '.'
     metadata_df, grid = load_data(data_dir)
     plot_cs_to_log_of_response_latency(grid, 7)
+    """
+
+    # --- time spent in port plot ---
+    data_dir = '.'
+    metadata_df, grid = load_data(data_dir)
+    plot_time_spent_in_port(grid, 7)
