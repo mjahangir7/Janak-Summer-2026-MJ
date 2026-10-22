@@ -25,6 +25,8 @@ import matplotlib.pyplot as plt
 import matplotlib as mpl
 import math
 from scipy import stats
+from collections import defaultdict
+from matplotlib.lines import Line2D
 
 
 # font for all plots
@@ -501,10 +503,10 @@ def plot_cs_to_log_of_response_latency(grid, etoh_id):
 
 
 
-def plot_time_spent_in_port(grid, etoh_id):
+def plot_time_spent_in_port(grid, etoh_id, rat_sex=None):
     """
-    Histogram: Plots total time spent in port during the reward consumption window (pump on --> vacuum on)
-    separately for surprise/forced and choice trials
+    Scatter plot: Plots average time spent in port during the reward consumption window (pump on --> vacuum on)
+    for each rat, separately for surprise/forced and choice trials, plus a combined "all trials" panel
 
     For each trial:
         1. Find when the pump turned on (reward delivery)
@@ -514,23 +516,32 @@ def plot_time_spent_in_port(grid, etoh_id):
             - if rat stays past vacuum --> vacuum TS - entry TS (capped at vacuum)
             - also checks if rat was already in port when pump fired
 
-    Two subplots/histograms:
-        Left: Surprise trials — water vs ethanol time in port
-        Right: Choice trials — water vs ethanol time in port
+    Then averages each rat's trials into one value per category, and plots:
+        - individual rat averages as scatter points (circle = female, square = male)
+        - gray lines connecting each rat's water + etoh dots
+        - group average as a black horizontal dash
 
-    x-axis: time spent in port (seconds)
-    y-axis: # of trials/observations
+    Three subplots:
+        Left: All trials combined (surprise + choice)
+        Middle: Surprise trials — water vs ethanol
+        Right: Choice trials — water vs ethanol
+
+    x-axis: reward type (Water vs EtOH)
+    y-axis: average time spent in port (seconds)
+
+    rat_sex: dict mapping (group, rat) --> 'F' or 'M', e.g. {('Lotus', '1'): 'F', ('Lotus', '2'): 'M'}
 
     """
 
     vacuum_delay = 30  # vacuum comes on 30 seconds after pump (c5/100 = 3000 centiseconds / 100)
 
-    # make lists for times spent in port (4 lists)
+    # make dicts for times spent in port (4 dicts, one per category)
+    # keyed by (group, rat) so we can average per rat later
 
-    etoh_surprise_time = []
-    water_surprise_time = []
-    etoh_choice_time = []
-    water_choice_time = []
+    etoh_surprise_time = defaultdict(list)
+    water_surprise_time = defaultdict(list)
+    etoh_choice_time = defaultdict(list)
+    water_choice_time = defaultdict(list)
 
     # loop through each session
 
@@ -605,11 +616,11 @@ def plot_time_spent_in_port(grid, etoh_id):
                 if total_time <= 0:
                     continue
 
-                # store under correct reward type
+                # store under correct reward type, keyed by (group, rat)
                 if t == eth_trial:
-                    etoh_surprise_time.append(total_time)
+                    etoh_surprise_time[(group, rat)].append(total_time)
                 else:
-                    water_surprise_time.append(total_time)
+                    water_surprise_time[(group, rat)].append(total_time)
 
         # CHOICE TRIALS (id 3)
             elif t == 3:
@@ -673,36 +684,110 @@ def plot_time_spent_in_port(grid, etoh_id):
                     chose_eth = (data['rewID_L'][0] != etoh_id)
 
                 if chose_eth:
-                    etoh_choice_time.append(total_time)
+                    etoh_choice_time[(group, rat)].append(total_time)
                 else:
-                    water_choice_time.append(total_time)
+                    water_choice_time[(group, rat)].append(total_time)
 
 
-    # plot + formatting
+    # --- per-rat averaging ---
+    # each rat has multiple trials across sessions, so average them down to one value per rat
+
+    # grab all unique (group, rat) keys that show up in any of the 4 dicts
+    all_rat_keys = set()
+    for d in [etoh_surprise_time, water_surprise_time, etoh_choice_time, water_choice_time]:
+        all_rat_keys.update(d.keys())
+
+    # for each rat, take the mean of their trials in each category
+    rat_means = {}
+    for rat_key in all_rat_keys:
+
+        # "all trials" = pool surprise + choice together, then average
+        all_water = list(water_surprise_time.get(rat_key, [])) + list(water_choice_time.get(rat_key, []))
+        all_etoh  = list(etoh_surprise_time.get(rat_key, []))  + list(etoh_choice_time.get(rat_key, []))
+
+        rat_means[rat_key] = {
+            'all_water':      np.mean(all_water) if all_water else None,
+            'all_etoh':       np.mean(all_etoh)  if all_etoh  else None,
+            'surprise_water': np.mean(water_surprise_time[rat_key]) if rat_key in water_surprise_time else None,
+            'surprise_etoh':  np.mean(etoh_surprise_time[rat_key])  if rat_key in etoh_surprise_time  else None,
+            'choice_water':   np.mean(water_choice_time[rat_key])   if rat_key in water_choice_time   else None,
+            'choice_etoh':    np.mean(etoh_choice_time[rat_key])    if rat_key in etoh_choice_time    else None,
+        }
+
+
+    # --- plot + formatting ---
 
     plt.rcParams.update({'font.size': 14})
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5), tight_layout=True)
+    fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(18, 6))
 
     water_color = (0.1, 0.4, 0.6)
     etoh_color = (0.1, 0.5, 0.2)
 
-    ax1.hist(water_surprise_time, color=water_color, bins=80, alpha=0.5, label="Water")
-    ax1.hist(etoh_surprise_time, color=etoh_color, bins=80, alpha=0.5, label="EtOH")
-    ax1.set_title("Surprise Trials")
-    ax1.set_xlabel('Time (s)', fontsize=18)
-    ax1.set_ylabel('Number of trials', fontsize=18)
-    ax1.legend()
+    # what each subplot shows: (axes, title, water key, etoh key)
+    subplot_configs = [
+        (ax1, 'All Trials',     'all_water',      'all_etoh'),
+        (ax2, 'Surprise Trials', 'surprise_water', 'surprise_etoh'),
+        (ax3, 'Choice Trials',   'choice_water',   'choice_etoh'),
+    ]
 
-    ax2.hist(water_choice_time, color=water_color, bins=80, alpha=0.5, label="Water")
-    ax2.hist(etoh_choice_time, color=etoh_color, bins=80, alpha=0.5, label="EtOH")
-    ax2.set_title("Choice Trials")
-    ax2.set_xlabel('Time (s)', fontsize=18)
-    ax2.set_ylabel('Number of trials', fontsize=18)
-    ax2.legend()
+    for ax, title, water_key, etoh_key in subplot_configs:
 
-    y_max = max(ax1.get_ylim()[1], ax2.get_ylim()[1])
-    ax1.set_ylim(0, y_max)
-    ax2.set_ylim(0, y_max)
+        group_water_vals = []  # will hold each rat's avg to compute group mean later
+        group_etoh_vals = []
+
+        # go through each rat and plot their water vs etoh dots
+        for rat_key in all_rat_keys:
+            w_val = rat_means[rat_key][water_key]
+            e_val = rat_means[rat_key][etoh_key]
+
+            # skip if rat doesn't have both water + etoh for this panel
+            if w_val is None or e_val is None:
+                continue
+
+            # circle for female, square for male
+            sex = rat_sex.get(rat_key, 'F') if rat_sex else 'F'
+            marker = 'o' if sex == 'F' else 's'
+
+            # faint line connecting this rat's water and etoh dots
+            ax.plot([0, 1], [w_val, e_val], color='gray', alpha=0.3, zorder=1)
+
+            # individual dots: water at x=0, etoh at x=1
+            ax.scatter(0, w_val, color=water_color, marker=marker, s=50, zorder=2)
+            ax.scatter(1, e_val, color=etoh_color,  marker=marker, s=50, zorder=2)
+
+            group_water_vals.append(w_val)
+            group_etoh_vals.append(e_val)
+
+        # group average = black horizontal dash
+        if group_water_vals:
+            ax.plot(0, np.mean(group_water_vals), marker='_', color='black',
+                    markersize=20, markeredgewidth=3, zorder=3)
+        if group_etoh_vals:
+            ax.plot(1, np.mean(group_etoh_vals), marker='_', color='black',
+                    markersize=20, markeredgewidth=3, zorder=3)
+
+        ax.set_title(title)
+        ax.set_xticks([0, 1])
+        ax.set_xticklabels(['Water', 'EtOH'])
+        ax.set_ylabel('Average Time in Port (s)', fontsize=14)
+        ax.set_xlim(-0.5, 1.5)
+
+    # match y-axis range across all subplots (tight around the data, not starting at 0)
+    y_min = min(ax1.get_ylim()[0], ax2.get_ylim()[0], ax3.get_ylim()[0])
+    y_max = max(ax1.get_ylim()[1], ax2.get_ylim()[1], ax3.get_ylim()[1])
+    padding = (y_max - y_min) * 0.1  # little breathing room so nothing sits on the edge
+    ax1.set_ylim(y_min - padding, y_max + padding)
+    ax2.set_ylim(y_min - padding, y_max + padding)
+    ax3.set_ylim(y_min - padding, y_max + padding)
+
+    # custom legend (need Line2D handles since we used different markers)
+    legend_handles = [
+        Line2D([0], [0], marker='o', color='gray', linestyle='None', markersize=8, label='Female'),
+        Line2D([0], [0], marker='s', color='gray', linestyle='None', markersize=8, label='Male'),
+        Line2D([0], [0], marker='_', color='black', linestyle='None', markersize=12,
+               markeredgewidth=3, label='Group average'),
+    ]
+    ax3.legend(handles=legend_handles, loc='upper right')
 
     plt.tight_layout(rect=[0, 0, 1, 0.87])
     plt.suptitle('Time Spent in Port After Reward Delivery', fontsize=20, fontweight='bold', x=0.52, y=0.93)
@@ -732,4 +817,20 @@ if __name__ == '__main__':
     # --- time spent in port plot ---
     data_dir = '.'
     metadata_df, grid = load_data(data_dir)
-    plot_time_spent_in_port(grid, 7)
+
+    # map each (group, rat) to 'F' or 'M'
+    rat_sex = {
+        ('Foxglove', '1'): 'F',
+        ('Foxglove', '2'): 'F',
+        ('Foxglove', '4'): 'M',
+        ('Iris', '2'):     'F',
+        ('Iris', '3'):     'M',
+        ('Iris', '4'):     'M',
+        ('Lotus', '2'):    'F',
+        ('Lotus', '3'):    'F',
+        ('Lotus', '4'):    'F',
+        ('Lotus', '5'):    'M',
+        ('Lotus', '6'):    'M',
+    }
+
+    plot_time_spent_in_port(grid, 7, rat_sex=rat_sex)
