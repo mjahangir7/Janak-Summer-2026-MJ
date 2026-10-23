@@ -717,7 +717,7 @@ def plot_time_spent_in_port(grid, etoh_id, rat_sex=None):
 
     # --- plot + formatting ---
 
-    plt.rcParams.update({'font.size': 14})
+    plt.rcParams.update({'font.size': 20})
     fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(18, 6))
 
     water_color = (0.1, 0.4, 0.6)
@@ -752,8 +752,8 @@ def plot_time_spent_in_port(grid, etoh_id, rat_sex=None):
             ax.plot([0, 1], [w_val, e_val], color='gray', alpha=0.3, zorder=1)
 
             # individual dots: water at x=0, etoh at x=1
-            ax.scatter(0, w_val, color=water_color, marker=marker, s=50, zorder=2)
-            ax.scatter(1, e_val, color=etoh_color,  marker=marker, s=50, zorder=2)
+            ax.scatter(0, w_val, color=water_color, marker=marker, s=200, alpha=0.5, edgecolors='none', zorder=2)
+            ax.scatter(1, e_val, color=etoh_color,  marker=marker, s=200, alpha=0.5, edgecolors='none', zorder=2)
 
             group_water_vals.append(w_val)
             group_etoh_vals.append(e_val)
@@ -761,15 +761,15 @@ def plot_time_spent_in_port(grid, etoh_id, rat_sex=None):
         # group average = black horizontal dash
         if group_water_vals:
             ax.plot(0, np.mean(group_water_vals), marker='_', color='black',
-                    markersize=20, markeredgewidth=3, zorder=3)
+                    markersize=30, markeredgewidth=4, zorder=3)
         if group_etoh_vals:
             ax.plot(1, np.mean(group_etoh_vals), marker='_', color='black',
-                    markersize=20, markeredgewidth=3, zorder=3)
+                    markersize=30, markeredgewidth=4, zorder=3)
 
         ax.set_title(title)
         ax.set_xticks([0, 1])
         ax.set_xticklabels(['Water', 'EtOH'])
-        ax.set_ylabel('Average Time in Port (s)', fontsize=14)
+        ax.set_ylabel('Average Time in Port (s)')
         ax.set_xlim(-0.5, 1.5)
 
     # match y-axis range across all subplots (tight around the data, not starting at 0)
@@ -782,15 +782,15 @@ def plot_time_spent_in_port(grid, etoh_id, rat_sex=None):
 
     # custom legend (need Line2D handles since we used different markers)
     legend_handles = [
-        Line2D([0], [0], marker='o', color='gray', linestyle='None', markersize=8, label='Female'),
-        Line2D([0], [0], marker='s', color='gray', linestyle='None', markersize=8, label='Male'),
-        Line2D([0], [0], marker='_', color='black', linestyle='None', markersize=12,
-               markeredgewidth=3, label='Group average'),
+        Line2D([0], [0], marker='o', color='gray', linestyle='None', markersize=12, label='Female'),
+        Line2D([0], [0], marker='s', color='gray', linestyle='None', markersize=12, label='Male'),
+        Line2D([0], [0], marker='_', color='black', linestyle='None', markersize=16,
+               markeredgewidth=4, label='Group avg'),
     ]
-    ax3.legend(handles=legend_handles, loc='upper right')
+    ax3.legend(handles=legend_handles, loc='upper right', fontsize=16)
 
     plt.tight_layout(rect=[0, 0, 1, 0.87])
-    plt.suptitle('Time Spent in Port After Reward Delivery', fontsize=20, fontweight='bold', x=0.52, y=0.93)
+    plt.suptitle('Time Spent in Port After Reward Delivery', fontsize=24, fontweight='bold', x=0.52, y=0.93)
     plt.show()
 
 
